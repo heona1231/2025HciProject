@@ -9,7 +9,7 @@ export default function Index() {
   return (
     <View style={{ flex: 1, justifyContent: "center", padding: 20 }}>
       <Text style={{ fontSize: 24, marginBottom: 20 }}>이름을 입력하세요</Text>
-
+    //test
       <TextInput
         value={name}
         onChangeText={setName}
