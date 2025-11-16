@@ -11,11 +11,13 @@ const Maindefault: React.FC = () => {
   const router = useRouter();
 
   // 드롭다운 항목 리스트와 이동 경로 매핑
+  
   const events = [
-    { name: "크리스마스 행사", route: "/christmasEvent" },
-    { name: "가나디", route: "/infoMain" },
+    { name: "가나디's 쿠킹클래스", route: "/infoMain" },
+    { name: "신년 행사", route: "/a" },
     { name: "겨울 마켓", route: "/winterMarket" },
   ];
+  
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -30,7 +32,7 @@ const Maindefault: React.FC = () => {
         />
 
         {/* 드롭다운 */}
-        <View>
+        <View style={{ position: 'relative' }}> {/* 상대 위치 지정 */}
           <TouchableOpacity 
             style={styles.dropdown}
             onPress={() => setOpen(!open)}
@@ -42,15 +44,17 @@ const Maindefault: React.FC = () => {
           </TouchableOpacity>
 
           {open && (
-            <View style={styles.dropdownList}>
-              {events.map((item, index) => (
+            <View style={[styles.dropdownList, { position: 'absolute', top: 44, left: 0, right: 0, zIndex: 10 }]}>
+              {events.map((item: { name: string; route: string }, index: number) => (
                 <TouchableOpacity
                   key={index}
                   style={styles.dropdownItem}
                   onPress={() => {
                     setSelectedEvent(item.name);
                     setOpen(false);
-                    router.push("/infoMain"); // 선택 시 페이지 이동
+                    if (item.name === "가나디's 쿠킹클래스") {
+                      router.push("/infoMain");
+                    }
                   }}
                 >
                   <Text style={styles.dropdownItemText}>{item.name}</Text>
