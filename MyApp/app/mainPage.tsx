@@ -2,16 +2,23 @@ import * as React from "react";
 import { Text, StyleSheet, View, TouchableOpacity, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { Stack } from "expo-router";
+import { useRouter } from "expo-router"; // <-- 라우터 import
 
-const Maindefault = () => {
+const Maindefault: React.FC = () => {
   const [open, setOpen] = React.useState(false);
   const [selectedEvent, setSelectedEvent] = React.useState("");
+  const router = useRouter(); // <-- 라우터 훅
 
-  // 드롭다운 항목 리스트 (이곳에 원하는 행사 추가!)
+  // 드롭다운 항목 리스트
   const events = ["크리스마스 행사", "신년 행사", "겨울 마켓"];
 
   return (
+    
     <SafeAreaView style={styles.container} edges={['top']}>
+      <Stack.Screen
+        options={{ headerShown: false }} // ← 이게 핵심
+      />
       <View style={styles.content}>
         {/* 로고 */}
         <Image 
@@ -32,7 +39,6 @@ const Maindefault = () => {
             <Ionicons name="chevron-down" size={20} color="#616161" />
           </TouchableOpacity>
 
-          {/* 드롭다운 리스트 */}
           {open && (
             <View style={styles.dropdownList}>
               {events.map((item, index) => (
@@ -56,7 +62,11 @@ const Maindefault = () => {
           <Text style={styles.mainTitle}>행사 정보가 존재하지 않아요.</Text>
           <Text style={styles.mainSubtitle}>첫 정보를 입력해볼까요?</Text>
           
-          <TouchableOpacity style={styles.addButton}>
+          {/* ← 여기서 router.push("/enterInfo") 추가 */}
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => router.push("/enterInfo")}
+          >
             <Text style={styles.addButtonText}>행사 추가하기</Text>
           </TouchableOpacity>
         </View>
@@ -91,46 +101,19 @@ const styles = StyleSheet.create({
     width: 328,
     height: 44,
     borderRadius: 10,
-    paddingHorizontal: 16, // 요청하신 양옆 공백
-  },
-
-  dropdownText: {
-    fontSize: 12,
-    color: "#616161",
-    fontWeight: "600",
-  },
-
-  dropdownList: {
-    backgroundColor: "#fff",
-    marginTop: 4,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#ddd",
-  },
-  dropdownItem: {
-    paddingVertical: 12,
     paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
   },
-  dropdownItemText: {
-    fontSize: 12,
-    color: "#333",
-  },
+
+  dropdownText: { fontSize: 12, color: "#616161", fontWeight: "600" },
+
+  dropdownList: { backgroundColor: "#fff", marginTop: 4, borderRadius: 10, borderWidth: 1, borderColor: "#ddd" },
+  dropdownItem: { paddingVertical: 12, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: "#eee" },
+  dropdownItemText: { fontSize: 12, color: "#333" },
 
   mainContent: { marginTop: 200 },
   mainTitle: { fontSize: 20, fontWeight: "600", color: "#000", marginBottom: 4 , marginLeft: 16 },
   mainSubtitle: { fontSize: 16, color: "#000", marginBottom: 16, marginLeft: 16 },
-  addButton: {
-    backgroundColor: "#FF59AD",
-    width: 114,       // 고정 가로
-    height: 38,       // 고정 세로
-    borderRadius: 10,
-    justifyContent: "center",
-    alignItems: "center",
-    marginLeft:16
-  },
-
+  addButton: { backgroundColor: "#FF59AD", width: 114, height: 38, borderRadius: 10, justifyContent: "center", alignItems: "center", marginLeft:16 },
   addButtonText: { color: "#fff", fontSize: 12, fontWeight: "700" },
 
   bottomNav: {

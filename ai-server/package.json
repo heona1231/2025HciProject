@@ -17,6 +17,8 @@
     "expo-image-picker": "^17.0.8",
     "express": "^5.1.0",
     "multer": "^2.0.2",
-    "openai": "^6.9.0"
+    "node-fetch": "^3.3.2",
+    "openai": "^6.9.0",
+    "puppeteer": "^24.30.0"
   }
 }
