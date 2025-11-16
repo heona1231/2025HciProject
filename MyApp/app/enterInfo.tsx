@@ -167,20 +167,19 @@ const EnterInfo: React.FC = () => {
 
       {/* 하단 네비게이션 */}
       <View style={styles.bottomNav}>
-        <TouchableOpacity 
-          style={styles.navItem}
-          onPress={() => router.push("/")}
-          disabled={loading}
-        >
-          <Ionicons name="home" size={24} color="#FF59AD" />
-          <Text style={styles.navTextActive}>HOME</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.navItem} disabled={loading}>
-          <Ionicons name="person-outline" size={24} color="#616161" />
-          <Text style={styles.navTextInactive}>MYPAGE</Text>
-        </TouchableOpacity>
-      </View>
+              <TouchableOpacity 
+                style={styles.navItem} 
+                onPress={() => router.push("/mainPage")}
+              >
+                <Ionicons name="home" size={24} color="#FF59AD" />
+                <Text style={styles.navTextActive}>HOME</Text>
+              </TouchableOpacity>
+      
+              <TouchableOpacity style={styles.navItem}>
+                <Ionicons name="person-outline" size={24} color="#616161" />
+                <Text style={styles.navTextInactive}>MYPAGE</Text>
+              </TouchableOpacity>
+            </View>
     </SafeAreaView>
   );
 };
