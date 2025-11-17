@@ -3,6 +3,9 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { View, Text, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as FileSystem from 'expo-file-system';
+import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 // 1단계에서 정의한 타입 임포트
 import { ViewState, EventData, SimpleEventCardData } from '../data/types';
 // 이전에 정의한 뷰 컴포넌트 임포트
@@ -10,8 +13,37 @@ import HomeInputView from '../components/HomeInputView';
 import HomeDetailView from '../components/HomeDetailView';
 import HomeDefaultView from '../components/HomeDefaultView'; // HomeDefaultView 임포트
 
-// ⚠️ AI 서버 주소 설정 (server.js에 설정된 포트 4000 사용 가정)
-const AI_SERVER_URL = "http://localhost:4000";
+// AI 서버 주소 동적 결정: Expo 디바이스/에뮬레이터/로컬 테스트 환경에 맞춰 자동 선택
+const DEFAULT_PORT = 4000;
+function getAiServerUrl() {
+    // 1) 사용자가 앱 설정으로 제공한 값 (expo config extra 등)
+    try {
+        const manifest: any = Constants.manifest || (Constants as any).expoConfig || {};
+        const extraUrl = manifest?.extra?.AI_SERVER_URL;
+        if (extraUrl) return extraUrl;
+
+        // 2) Expo 개발 환경: debuggerHost (예: 192.168.0.5:19000)
+        const debuggerHost = manifest?.debuggerHost || manifest?.packagerOpts?.packagerHost;
+        if (debuggerHost && typeof debuggerHost === 'string') {
+            const host = debuggerHost.split(':')[0];
+            return `http://${host}:${DEFAULT_PORT}`;
+        }
+    } catch (e) {
+        // ignore and fallback
+    }
+
+    // 3) Android emulator special host
+    if (Platform.OS === 'android') {
+        // Android emulator: 10.0.2.2 maps to host machine
+        return `http://10.0.2.2:${DEFAULT_PORT}`;
+    }
+
+    // 4) 기본 로컬호스트 (iOS simulator or when running in same host)
+    return `http://localhost:${DEFAULT_PORT}`;
+}
+
+const AI_SERVER_URL = getAiServerUrl();
+console.log('AI_SERVER_URL 사용:', AI_SERVER_URL);
 
 
 // ----------------------------------------------------------------------
@@ -58,7 +90,14 @@ const mergeAnalysisData = (linkData: any, imageData: any): EventData => {
 
     const imageGoodsList = imageData?.goods?.goods_list || [];
     if (imageGoodsList.length > 0) {
-        mergedData.goods_list = imageGoodsList;
+        // Preserve image-derived goods separately and only replace main goods_list
+        // when link-based goods are not available. This prevents mixing past-event
+        // or link-scraped goods with raw image OCR results.
+        mergedData.image_goods_list = imageGoodsList;
+        // If there are no link-derived goods, use image goods as the primary list
+        if (!Array.isArray(mergedData.goods_list) || mergedData.goods_list.length === 0) {
+            mergedData.goods_list = imageGoodsList;
+        }
     } else {
         mergedData.goods_list = mergedData.goods_list || [];
     }
@@ -66,8 +105,11 @@ const mergeAnalysisData = (linkData: any, imageData: any): EventData => {
     const linkBenefits = mergedData.event_benefits || [];
     const imageBenefits = imageData?.goods?.event_benefits || [];
 
-    const allBenefits = [...linkBenefits, ...imageBenefits];
-    mergedData.event_benefits = Array.from(new Set(allBenefits.filter(b => b && b.trim() !== '')));
+    // Keep image-derived benefits separately for transparency, but merge into
+    // the main event_benefits list (deduped) so UI that expects a single list still works.
+    mergedData.image_event_benefits = imageBenefits;
+    const allBenefits = [...(linkBenefits || []), ...(imageBenefits || [])];
+    mergedData.event_benefits = Array.from(new Set(allBenefits.filter(b => b && String(b).trim() !== '')));
 
     mergedData.uploaded_images = imageData?.uploaded_images || [];
 
@@ -80,6 +122,7 @@ const mergeAnalysisData = (linkData: any, imageData: any): EventData => {
 const HomeScreen: React.FC = () => {
     const [currentView, setCurrentView] = useState<ViewState>('DEFAULT');
     const [eventData, setEventData] = useState<EventData | null>(null);
+    const [imageAnalysisData, setImageAnalysisData] = useState<any | null>(null);
     const [isLoading, setIsLoading] = useState(false);
 
     /**
@@ -90,6 +133,7 @@ const HomeScreen: React.FC = () => {
         // DETAIL 뷰에서 DEFAULT로 돌아갈 때는 데이터 초기화
         if (view === 'DEFAULT') {
             setEventData(null);
+            setImageAnalysisData(null);
         }
     }, []);
 
@@ -131,21 +175,101 @@ const HomeScreen: React.FC = () => {
 
             // 1-2. 이미지 분석 (필요시)
             if (images.length > 0) {
-                const imageResponse = await fetch(`${AI_SERVER_URL}/analyze-image`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ images }),
-                });
+                // 우선 권장: multipart/form-data 업로드 시도
+                console.log('📤 이미지 Multipart 업로드 시도:', images.length, '개');
+                try {
+                    const form = new FormData();
+                    images.forEach((uri, idx) => {
+                        // Android/iOS 파일 업로드용 객체
+                        const fileName = uri.split('/').pop() || `image_${idx}.jpg`;
+                        const fileType = fileName.endsWith('.png') ? 'image/png' : 'image/jpeg';
+                        // React Native fetch FormData expects { uri, name, type }
+                        // @ts-ignore
+                        form.append('images', { uri, name: fileName, type: fileType });
+                    });
 
-                const imageJson = await imageResponse.json();
-                if (!imageResponse.ok || !imageJson.success) {
-                    throw new Error(`이미지 분석 실패: ${imageJson.error || imageResponse.statusText}`);
+                    console.log('📤 POST', `${AI_SERVER_URL}/analyze-image-upload`);
+                    const uploadResponse = await fetch(`${AI_SERVER_URL}/analyze-image-upload`, {
+                        method: 'POST',
+                        headers: {
+                            // NOTE: do NOT set Content-Type manually for multipart; fetch will set the boundary
+                        },
+                        body: form as any,
+                    });
+
+                    console.log('📥 서버 응답 상태 (multipart):', uploadResponse.status);
+                    const uploadJson = await uploadResponse.json().catch((e) => {
+                        console.error('📥 multipart 응답 JSON 파싱 실패:', e);
+                        return null;
+                    });
+
+                    if (uploadResponse.ok && uploadJson && uploadJson.success) {
+                        console.log('📥 multipart 분석 결과 요약:', JSON.stringify(uploadJson).slice(0, 200));
+                        console.log('📥 이미지에서 추출된 goods (multipart):', uploadJson?.goods);
+                        goodsDataResponse = uploadJson;
+                        setImageAnalysisData(uploadJson);
+                    } else {
+                        console.warn('⚠️ multipart 업로드 실패, base64 폴백 시도:', uploadJson?.error || uploadResponse.statusText);
+
+                        // fallthrough to base64 approach below
+                    }
+
+                } catch (multErr) {
+                    console.warn('⚠️ multipart 업로드 중 오류:', multErr);
+                    // 이어서 base64 폴백 시도
                 }
-                goodsDataResponse = imageJson;
+
+                // 만약 multipart로 goodsDataResponse가 채워지지 않았다면 기존 base64 JSON 전송으로 폴백
+                if (!goodsDataResponse) {
+                    console.log('📤 Base64 폴백: 이미지 Base64 변환 시작:', images.length, '개 이미지');
+                    const base64Images: string[] = [];
+                    for (let i = 0; i < images.length; i++) {
+                        const imageUri = images[i];
+                        console.log(`   이미지 ${i + 1} 읽는 중: ${imageUri}`);
+                        try {
+                            const base64Data = await FileSystem.readAsStringAsync(imageUri, { encoding: 'base64' });
+                            const mimeType = imageUri.endsWith('.png') ? 'image/png' : 'image/jpeg';
+                            const dataUri = `data:${mimeType};base64,${base64Data}`;
+                            base64Images.push(dataUri);
+                            console.log(`   ✅ 이미지 ${i + 1} 변환 완료 (Base64 길이: ${base64Data.length})`);
+                        } catch (err) {
+                            console.error(`   ❌ 이미지 ${i + 1} 읽기 실패:`, err);
+                            throw new Error(`이미지 파일을 읽을 수 없습니다: ${imageUri}`);
+                        }
+                    }
+
+                    console.log('📤 이미지 분석 요청 전송 (base64)... to', `${AI_SERVER_URL}/analyze-image`);
+                    try {
+                        const imageResponse = await fetch(`${AI_SERVER_URL}/analyze-image`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ images: base64Images }),
+                        });
+
+                        console.log('📥 서버 응답 상태 (base64):', imageResponse.status);
+                        const imageJson = await imageResponse.json().catch((e) => {
+                            console.error('📥 base64 응답 JSON 파싱 실패:', e);
+                            return null;
+                        });
+
+                        console.log('📥 이미지 분석 전체 응답 JSON (base64):', imageJson);
+                        console.log('📥 이미지에서 추출된 goods (base64):', imageJson?.goods);
+
+                        if (!imageResponse.ok || !imageJson || !imageJson.success) {
+                            throw new Error(`이미지 분석 실패: ${imageJson?.error || imageResponse.statusText}`);
+                        }
+                        goodsDataResponse = imageJson;
+                        setImageAnalysisData(imageJson);
+                    } catch (imgErr) {
+                        console.error('이미지 분석 요청 중 오류:', imgErr);
+                        throw imgErr;
+                    }
+                }
             }
 
-            // 🚨 데이터가 아예 없는 경우 처리 (goodsDataResponse의 타입 오류가 해결됨)
-            if (!eventDataResponse && (!goodsDataResponse || !goodsDataResponse.goods)) {
+            // 🚨 데이터가 아예 없는 경우 처리
+            // 링크 분석 또는 이미지 분석 중 적어도 하나가 성공해야 진행합니다.
+            if (!eventDataResponse && !goodsDataResponse) {
                 Alert.alert("분석 실패", "입력된 정보에서 행사 관련 데이터를 추출하지 못했습니다.");
                 return;
             }
@@ -157,12 +281,14 @@ const HomeScreen: React.FC = () => {
 
             // 2-1. 데이터 저장
             setEventData(finalEventData);
+            // If imageAnalysisData exists but not set (edge cases), ensure it's preserved
+            if (!imageAnalysisData && goodsDataResponse) setImageAnalysisData(goodsDataResponse);
 
             // 2-2. 뷰 전환
             setCurrentView('DETAIL');
 
         } catch (error) {
-            // 🚨 오류 메시지 처리 로직 (error is of type 'unknown' 해결)
+            // 🚨 오류 메시지 처리 로직
             let errorMessage = "알 수 없는 오류가 발생했습니다.";
             if (error instanceof Error) {
                 errorMessage = error.message;
@@ -170,9 +296,21 @@ const HomeScreen: React.FC = () => {
                 errorMessage = error;
             }
 
-            Alert.alert("분석 오류", `AI 분석 중 오류가 발생했습니다: ${errorMessage}`);
             console.error("Analysis Error:", error);
-            setCurrentView('DEFAULT');
+            // 경고는 보여주되, 사용자의 입력(링크/이미지)은 유지하고
+            // 부분 결과가 있으면 상세화면으로 보여줍니다.
+            Alert.alert("분석 오류", `AI 분석 중 오류가 발생했습니다: ${errorMessage}`);
+
+            if (eventDataResponse || goodsDataResponse) {
+                try {
+                    const baseData = eventDataResponse || createDummyEventData(link, images);
+                    const finalEventData = mergeAnalysisData(baseData, goodsDataResponse);
+                    setEventData(finalEventData);
+                    setCurrentView('DETAIL');
+                } catch (mergeErr) {
+                    console.error('병합 중 추가 오류:', mergeErr);
+                }
+            }
         } finally {
             setIsLoading(false);
         }
@@ -203,12 +341,12 @@ const HomeScreen: React.FC = () => {
                 );
             case 'DETAIL':
                 if (eventData) {
-                    return <HomeDetailView data={eventData} onBack={handleNavigate} />;
+                    return <HomeDetailView data={eventData} imageData={imageAnalysisData} onBack={handleNavigate} />;
                 }
                 // 데이터가 없거나 에러 발생 시 다시 기본 뷰로
                 return <HomeDefaultView onNavigate={handleNavigate} />;
         }
-    }, [currentView, eventData, isLoading, handleAnalyze, handleNavigate]);
+    }, [currentView, eventData, isLoading, handleAnalyze, handleNavigate, imageAnalysisData]);
 
     return (
         <SafeAreaView style={styles.safeArea}>

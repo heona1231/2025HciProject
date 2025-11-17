@@ -106,10 +106,10 @@ const HomeInputView: React.FC<HomeInputViewProps> = ({ onAnalyze, onNavigate, is
                 {/* 메인 타이틀/설명 영역 */}
                 <View style={styles.mainHeaderArea}>
                     <Text style={styles.mainTitle}>
-                        행사 관련 공식 게시물의{"\n"}링크를 올려주세요
+                        행사 관련 공식 게시물의 링크를 올려주세요
                     </Text>
                     <Text style={styles.mainSubtitle}>
-                        행사에 대한 링크와 이미지를 올리면{"\n"}AI가 자동 정리해줘요
+                        모든 웹페이지 링크(블로그, SNS, 공식 페이지 등)와 이미지를 올리면{"\n"}AI가 자동으로 행사 정보를 정리해드립니다.
                     </Text>
                 </View>
 
@@ -132,7 +132,7 @@ const HomeInputView: React.FC<HomeInputViewProps> = ({ onAnalyze, onNavigate, is
                     {/* 안내 메시지 */}
                     <View style={styles.errorTextWrapper}>
                         <Ionicons name="information-circle-outline" size={14} color="#494949" />
-                        <Text style={styles.errorText}>'X'의 정보는 읽을 수 없어요.</Text>
+                        <Text style={styles.errorText}>일부 사이트는 접근 제한(로그인/스크립트 등)으로 내용 추출이 어려울 수 있습니다.</Text>
                     </View>
                 </View>
 
