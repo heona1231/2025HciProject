@@ -1,21 +1,28 @@
 // app/(tabs)/mypage.tsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { StyleSheet, View, Text, Image, ScrollView, TouchableOpacity, Alert } from "react-native";
 import { Picker } from "@react-native-picker/picker";
 import { SafeAreaView } from "react-native-safe-area-context";
 import SharedEventHeader from '../components/SharedEventHeader';
+import { useEventContext } from '../context/EventContext';
 
 // =========================================================
 // 💡 MyPage 컴포넌트 시작
 // =========================================================
 export default function MyPage() {
-    // --- 1. MyPage 기존 데이터 및 로직 (굿즈 목록) ---
-    const goods = [
-        { id: 1, name: '아크릴 키링', price: 8000, image: 'https://via.placeholder.com/100', keyword: '춘식이/아크릴', searchCount: 52000 },
-        { id: 2, name: '포토카드 세트', price: 12000, image: 'https://via.placeholder.com/100', keyword: '라이언/지류', searchCount: 15000 },
-        { id: 3, name: '스터커 팩', price: 5000, image: 'https://via.placeholder.com/100', keyword: '어피치/지류', searchCount: 38000 },
-    ];
-    const [priorities, setPriorities] = useState(["1", "2", "3"]);
+    // --- 1. EventContext에서 굿즈 목록 가져오기 ---
+    const { myGoods } = useEventContext();
+    const goods = myGoods;
+    
+    const [priorities, setPriorities] = useState<string[]>(
+        goods.map((_, index) => String((index % 3) + 1))
+    );
+
+    // 💡 굿즈 목록이 변경될 때마다 priorities 업데이트
+    useEffect(() => {
+        setPriorities(goods.map((_, index) => String((index % 3) + 1)));
+    }, [goods.length]);
+
     const updatePriority = (index: number, newValue: string) => {
         const oldValue = priorities[index];
         if (oldValue === newValue) { return; }
@@ -51,7 +58,7 @@ export default function MyPage() {
                             <View key={item.id} style={styles.goods}>
                                 <View style={styles.numberCircle}><Text style={[styles.caption1, {color:"white"}]}>{index + 1}</Text></View>
                                 
-                                <Image source={require("../../assets/logo.png")} style={styles.image} resizeMode="contain"/>
+                                <Image source={typeof item.image === 'string' && (item.image.startsWith('http') || item.image.startsWith('file') || item.image.startsWith('data')) ? { uri: item.image } : require("../../assets/logo.png")} style={styles.image} resizeMode="contain"/>
                                 
                                 <View style={styles.goodsText}>
                                     <Text style={styles.caption1}>{item.name}</Text>
@@ -92,8 +99,8 @@ export default function MyPage() {
                                     </View>
 
                                     <View style={styles.circularImageContainer}>
-                                        <Image 
-                                            source={require("../../assets/logo.png")}
+                                            <Image 
+                                                source={typeof item.image === 'string' && (item.image.startsWith('http') || item.image.startsWith('file') || item.image.startsWith('data')) ? { uri: item.image } : require("../../assets/logo.png")}
                                             style={styles.circularImage} 
                                             resizeMode="contain"/>
                                     </View>
@@ -123,7 +130,7 @@ export default function MyPage() {
                                         <Text style={[styles.caption1, { color: "white" }]}>{index + 1}</Text>
                                     </View>
 
-                                    <Image source={require("../../assets/logo.png")} style={styles.image} resizeMode="contain" />
+                                    <Image source={typeof item.image === 'string' && (item.image.startsWith('http') || item.image.startsWith('file') || item.image.startsWith('data')) ? { uri: item.image } : require("../../assets/logo.png")} style={styles.image} resizeMode="contain" />
 
                                     <View style={styles.goodsText}>
                                         <Text style={styles.caption1}>{item.name}</Text>

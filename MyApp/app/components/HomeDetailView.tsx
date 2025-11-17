@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import SharedEventHeader from './SharedEventHeader';
+import { useEventContext } from '../context/EventContext';
 // Stack.Screen을 사용하려면 @react-navigation/native-stack이 필요하지만, 여기서는 무시합니다.
 // import { Stack } from 'expo-router'; // 필요한 경우
 
@@ -69,6 +70,9 @@ const HomeDetailView: React.FC<HomeDetailViewProps> = ({ data: currentData, imag
     const [open, setOpen] = React.useState(false); // 드롭다운 상태
     const [activeTab, setActiveTab] = React.useState("행사예매/입장");
 
+    // EventContext에서 addGoods 함수 가져오기
+    const { addGoods, myGoods } = useEventContext();
+
     // 💡 1. 과거 행사 데이터 상태 및 로딩 상태 추가
     const [pastEvents, setPastEvents] = React.useState<PastEventsData | undefined>(
         (currentData as any).pastEventsData // EventData에 pastEventsData 필드가 있다고 가정
@@ -77,6 +81,38 @@ const HomeDetailView: React.FC<HomeDetailViewProps> = ({ data: currentData, imag
     
     // UI 유지를 위한 더미 이벤트 목록 (드롭다운)
     const events = ["행사 1", "행사 2", "행사 3"]; // 임시 이벤트 목록
+
+    // 💡 굿즈를 MyPage 목록에 추가하는 함수
+    const handleAddToMyGoods = (goods: GoodsItem, imageSource?: any) => {
+        if (myGoods.length >= 3) {
+            Alert.alert("알림", "최대 3개까지만 추가할 수 있습니다!");
+            return;
+        }
+
+        // imageSource가 { uri: '...' } 형태일 수 있으므로 문자열 URI로 정규화
+        let imageUri: string | undefined;
+        if (!imageSource) {
+            imageUri = undefined;
+        } else if (typeof imageSource === 'string') {
+            imageUri = imageSource;
+        } else if (typeof imageSource === 'object' && imageSource.uri && typeof imageSource.uri === 'string') {
+            imageUri = imageSource.uri;
+        } else {
+            // require(...)로 반환되는 로컬 리소스는 숫자 타입일 수 있음. 이 경우 로컬 이미지를 사용하는 대신 기본 플레이스홀더 사용
+            imageUri = undefined;
+        }
+
+        const newGood = {
+            id: Date.now(), // 고유한 ID 생성
+            name: goods.goods_name,
+            price: parseFloat(String(goods.price).replace(/[^0-9]/g, '') || "0"),
+            image: imageUri || "https://via.placeholder.com/100",
+            keyword: goods.goods_name,
+            searchCount: 0,
+        };
+        addGoods(newGood);
+        Alert.alert("성공", `${goods.goods_name}을(를) 구매목록에 추가했습니다! (${myGoods.length + 1}/3)`);
+    };
 
     // 헬퍼 함수
     const pad = (num: number): string => (num < 10 ? `0${num}` : `${num}`);
@@ -419,7 +455,9 @@ const HomeDetailView: React.FC<HomeDetailViewProps> = ({ data: currentData, imag
                                         {/* 정책 3: 가격 (XXXXX원) */}
                                         <Text style={styles.goodsPrice}>{goods.price}</Text>
                                     </View>
-                                    <Ionicons name="add-circle-outline" size={24} color="#000" />
+                                    <TouchableOpacity onPress={() => handleAddToMyGoods(goods, imageSource)}>
+                                        <Ionicons name="add-circle-outline" size={24} color="#000" />
+                                    </TouchableOpacity>
                                 </View>
                             );
                         })}
