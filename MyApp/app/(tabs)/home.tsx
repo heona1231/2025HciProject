@@ -6,12 +6,19 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as FileSystem from 'expo-file-system';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+import axios from 'axios';
 // 1단계에서 정의한 타입 임포트
 import { ViewState, EventData, SimpleEventCardData } from '../data/types';
 // 이전에 정의한 뷰 컴포넌트 임포트
 import HomeInputView from '../components/HomeInputView';
 import HomeDetailView from '../components/HomeDetailView';
 import HomeDefaultView from '../components/HomeDefaultView'; // HomeDefaultView 임포트
+declare module 'expo-file-system' {
+  export enum EncodingType {
+    UTF8 = 'utf8',
+    Base64 = 'base64',
+  }
+}
 
 // AI 서버 주소 동적 결정: Expo 디바이스/에뮬레이터/로컬 테스트 환경에 맞춰 자동 선택
 const DEFAULT_PORT = 4000;
@@ -74,12 +81,13 @@ const createDummyEventData = (link: string, images: string[]): EventData => ({
         { title: "작가 사인회", description: "유명 웹툰 작가들의 사인회가 3일간 진행됩니다." }
     ],
     event_benefits: [
-        "사전 등록 시 한정판 엽서 증정",
-        "현장 이벤트 참여 시 경품 제공"
+        // "사전 등록 시 한정판 엽서 증정",
+        // "현장 이벤트 참여 시 경품 제공"
     ],
     goods_list: [
-        { goods_name: "한정판 캐릭터 인형", price: "50,000원" },
-        { goods_name: "오리지널 OST CD", price: "25,000원" }
+        //왜인지 이게 있으면 안됨
+        // { goods_name: "한정판 캐릭터 인형", price: "50,000원" },
+        // { goods_name: "오리지널 OST CD", price: "25,000원" }
     ],
     uploaded_images: images
 });
@@ -90,15 +98,10 @@ const mergeAnalysisData = (linkData: any, imageData: any): EventData => {
 
     const imageGoodsList = imageData?.goods?.goods_list || [];
     if (imageGoodsList.length > 0) {
-        // Preserve image-derived goods separately and only replace main goods_list
-        // when link-based goods are not available. This prevents mixing past-event
-        // or link-scraped goods with raw image OCR results.
-        mergedData.image_goods_list = imageGoodsList;
-        // If there are no link-derived goods, use image goods as the primary list
-        if (!Array.isArray(mergedData.goods_list) || mergedData.goods_list.length === 0) {
-            mergedData.goods_list = imageGoodsList;
-        }
-    } else {
+    mergedData.goods_list = imageGoodsList; // 기존 goods_list 덮어쓰기
+    mergedData.image_goods_list = imageGoodsList;
+} 
+else {
         mergedData.goods_list = mergedData.goods_list || [];
     }
 
@@ -172,101 +175,119 @@ const HomeScreen: React.FC = () => {
                 eventDataResponse = linkJson.event;
                 eventDataResponse.official_link = link;
             }
-
-            // 1-2. 이미지 분석 (필요시)
-            if (images.length > 0) {
-                // 우선 권장: multipart/form-data 업로드 시도
-                console.log('📤 이미지 Multipart 업로드 시도:', images.length, '개');
-                try {
-                    const form = new FormData();
-                    images.forEach((uri, idx) => {
-                        // Android/iOS 파일 업로드용 객체
-                        const fileName = uri.split('/').pop() || `image_${idx}.jpg`;
-                        const fileType = fileName.endsWith('.png') ? 'image/png' : 'image/jpeg';
-                        // React Native fetch FormData expects { uri, name, type }
-                        // @ts-ignore
-                        form.append('images', { uri, name: fileName, type: fileType });
-                    });
-
-                    console.log('📤 POST', `${AI_SERVER_URL}/analyze-image-upload`);
-                    const uploadResponse = await fetch(`${AI_SERVER_URL}/analyze-image-upload`, {
-                        method: 'POST',
-                        headers: {
-                            // NOTE: do NOT set Content-Type manually for multipart; fetch will set the boundary
-                        },
-                        body: form as any,
-                    });
-
-                    console.log('📥 서버 응답 상태 (multipart):', uploadResponse.status);
-                    const uploadJson = await uploadResponse.json().catch((e) => {
-                        console.error('📥 multipart 응답 JSON 파싱 실패:', e);
-                        return null;
-                    });
-
-                    if (uploadResponse.ok && uploadJson && uploadJson.success) {
-                        console.log('📥 multipart 분석 결과 요약:', JSON.stringify(uploadJson).slice(0, 200));
-                        console.log('📥 이미지에서 추출된 goods (multipart):', uploadJson?.goods);
-                        goodsDataResponse = uploadJson;
-                        setImageAnalysisData(uploadJson);
-                    } else {
-                        console.warn('⚠️ multipart 업로드 실패, base64 폴백 시도:', uploadJson?.error || uploadResponse.statusText);
-
-                        // fallthrough to base64 approach below
-                    }
-
-                } catch (multErr) {
-                    console.warn('⚠️ multipart 업로드 중 오류:', multErr);
-                    // 이어서 base64 폴백 시도
-                }
-
-                // 만약 multipart로 goodsDataResponse가 채워지지 않았다면 기존 base64 JSON 전송으로 폴백
-                if (!goodsDataResponse) {
-                    console.log('📤 Base64 폴백: 이미지 Base64 변환 시작:', images.length, '개 이미지');
+                // 1-2. 이미지 분석 (필요시)
+                if (images.length > 0) {
+                    console.log('📤 이미지 Base64 변환 시작:', images.length, '개');
                     const base64Images: string[] = [];
+                    
                     for (let i = 0; i < images.length; i++) {
                         const imageUri = images[i];
-                        console.log(`   이미지 ${i + 1} 읽는 중: ${imageUri}`);
+                        console.log(`📎 이미지 ${i + 1}:`, imageUri.slice(-50));
+                        
                         try {
-                            const base64Data = await FileSystem.readAsStringAsync(imageUri, { encoding: 'base64' });
-                            const mimeType = imageUri.endsWith('.png') ? 'image/png' : 'image/jpeg';
+                            // 🔥 방법 1: FileSystem 사용 (더 간단하고 안정적)
+                            const base64Data = await FileSystem.readAsStringAsync(imageUri, { 
+                                encoding: FileSystem.EncodingType.Base64
+                            });
+                            
+                            // MIME 타입 결정
+                            const mimeType = imageUri.toLowerCase().endsWith('.png') 
+                                ? 'image/png' 
+                                : 'image/jpeg';
+                            
+                            // Data URI 형식으로 변환
                             const dataUri = `data:${mimeType};base64,${base64Data}`;
                             base64Images.push(dataUri);
-                            console.log(`   ✅ 이미지 ${i + 1} 변환 완료 (Base64 길이: ${base64Data.length})`);
+                            
+                            const sizeKB = Math.round(base64Data.length / 1024);
+                            console.log(`✅ 이미지 ${i + 1} 변환 완료 (${sizeKB}KB)`);
+                            
                         } catch (err) {
-                            console.error(`   ❌ 이미지 ${i + 1} 읽기 실패:`, err);
-                            throw new Error(`이미지 파일을 읽을 수 없습니다: ${imageUri}`);
+                            console.error(`❌ 이미지 ${i + 1} Base64 변환 실패:`, err);
+                            
+                            // 🔥 방법 2: fetch + Blob 방식으로 재시도 (폴백)
+                            try {
+                                console.log(`🔄 이미지 ${i + 1} Blob 방식으로 재시도...`);
+                                const response = await fetch(imageUri);
+                                const blob = await response.blob();
+                                
+                                const base64String = await new Promise<string>((resolve, reject) => {
+                                    const reader = new FileReader();
+                                    reader.onloadend = () => {
+                                        if (typeof reader.result === 'string') {
+                                            resolve(reader.result);
+                                        } else {
+                                            reject(new Error('Base64 변환 실패'));
+                                        }
+                                    };
+                                    reader.onerror = reject;
+                                    reader.readAsDataURL(blob);
+                                });
+                                
+                                base64Images.push(base64String);
+                                console.log(`✅ 이미지 ${i + 1} Blob 방식으로 변환 완료`);
+                                
+                            } catch (blobErr) {
+                                console.error(`❌ 이미지 ${i + 1} Blob 방식도 실패:`, blobErr);
+                                Alert.alert("오류", `이미지 ${i + 1}을(를) 처리할 수 없습니다.`);
+                                setIsLoading(false);
+                                return;
+                            }
                         }
                     }
-
-                    console.log('📤 이미지 분석 요청 전송 (base64)... to', `${AI_SERVER_URL}/analyze-image`);
+                    
+                    if (base64Images.length === 0) {
+                        Alert.alert("오류", "변환된 이미지가 없습니다.");
+                        setIsLoading(false);
+                        return;
+                    }
+                    
+                    console.log('📤 서버로 전송 중...');
+                    console.log('📤 URL:', `${AI_SERVER_URL}/analyze-image`);
+                    console.log('📤 이미지 개수:', base64Images.length);
+                    
                     try {
-                        const imageResponse = await fetch(`${AI_SERVER_URL}/analyze-image`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ images: base64Images }),
-                        });
-
-                        console.log('📥 서버 응답 상태 (base64):', imageResponse.status);
-                        const imageJson = await imageResponse.json().catch((e) => {
-                            console.error('📥 base64 응답 JSON 파싱 실패:', e);
-                            return null;
-                        });
-
-                        console.log('📥 이미지 분석 전체 응답 JSON (base64):', imageJson);
-                        console.log('📥 이미지에서 추출된 goods (base64):', imageJson?.goods);
-
-                        if (!imageResponse.ok || !imageJson || !imageJson.success) {
-                            throw new Error(`이미지 분석 실패: ${imageJson?.error || imageResponse.statusText}`);
+                        const imageResponse = await axios.post(
+                            `${AI_SERVER_URL}/analyze-image`,
+                            { images: base64Images },
+                            {
+                                headers: { 
+                                    'Content-Type': 'application/json',
+                                    'Accept': 'application/json'
+                                },
+                                timeout: 120000, // 120초
+                            }
+                        );
+                        
+                        console.log('📥 응답 상태:', imageResponse.status);
+                        
+                        if (imageResponse.data && imageResponse.data.success) {
+                            console.log('✅ 이미지 분석 성공!');
+                            console.log('📊 굿즈:', imageResponse.data.goods?.goods_list?.length || 0, '개');
+                            console.log('📊 특전:', imageResponse.data.goods?.event_benefits?.length || 0, '개');
+                            
+                            goodsDataResponse = imageResponse.data;
+                            setImageAnalysisData(imageResponse.data);
+                        } else {
+                            throw new Error(`이미지 분석 실패: ${imageResponse.data?.error || '알 수 없는 오류'}`);
                         }
-                        goodsDataResponse = imageJson;
-                        setImageAnalysisData(imageJson);
-                    } catch (imgErr) {
-                        console.error('이미지 분석 요청 중 오류:', imgErr);
+                        
+                    } catch (imgErr: any) {
+                        console.error('❌ 이미지 분석 오류:', imgErr.message);
+                        
+                        if (imgErr.response) {
+                            console.error('📥 서버 응답:', imgErr.response.status, imgErr.response.data);
+                            Alert.alert("분석 실패", `서버 오류: ${imgErr.response.data?.error || imgErr.response.statusText}`);
+                        } else if (imgErr.request) {
+                            console.error('📥 요청 전송했으나 응답 없음');
+                            Alert.alert("네트워크 오류", "서버에 연결할 수 없습니다.");
+                        } else {
+                            Alert.alert("오류", `이미지 분석 중 오류: ${imgErr.message}`);
+                        }
+                        
                         throw imgErr;
                     }
                 }
-            }
-
             // 🚨 데이터가 아예 없는 경우 처리
             // 링크 분석 또는 이미지 분석 중 적어도 하나가 성공해야 진행합니다.
             if (!eventDataResponse && !goodsDataResponse) {
@@ -281,6 +302,7 @@ const HomeScreen: React.FC = () => {
 
             // 2-1. 데이터 저장
             setEventData(finalEventData);
+
             // If imageAnalysisData exists but not set (edge cases), ensure it's preserved
             if (!imageAnalysisData && goodsDataResponse) setImageAnalysisData(goodsDataResponse);
 
