@@ -17,6 +17,24 @@ export interface GoodsItem {
 }
 
 /**
+ * 굿즈 품절 정보 (과거 행사 데이터)
+ */
+export interface GoodsStockInfo {
+    goods_name: string;
+    sold_out_minutes: number; // 품절까지 걸린 시간 (분)
+    fastest_sold_out?: boolean; // 가장 빨리 품절된 상품 표시
+}
+
+/**
+ * 굿즈 인기도 정보 (검색량 기반)
+ */
+export interface GoodsPopularityRank {
+    goods_name: string;
+    rank: 1 | 2 | 3; // 1위, 2위, 3위
+    search_count: number; // 검색량
+}
+
+/**
  * AI 분석을 통해 얻게 될 최종 이벤트 데이터 구조 (DetailView에 전달될 데이터)
  */
 export interface EventData {
@@ -62,7 +80,13 @@ export interface EventData {
     goods_list: GoodsItem[] | null;
 
     // 분석을 위해 업로드되었던 이미지 목록 (URI)
-    uploaded_images: string[]; 
+    uploaded_images: string[];
+
+    // 과거 행사 굿즈 품절 정보
+    goods_stock_info?: GoodsStockInfo[] | null;
+
+    // 굿즈 인기도 순위 (1, 2, 3위)
+    goods_popularity_rank?: GoodsPopularityRank[] | null;
 }
 
 // HomeView에서 사용될 단순한 이벤트 미리보기 데이터

@@ -17,6 +17,7 @@ interface MyGoodsItem {
 export default function MyPage() {
     const { myGoods, eventTitle, goodsStockoutInfo, setGoodsStockoutInfo } = useEventContext();
     const goods: MyGoodsItem[] = myGoods;
+
     
     // 첫 번째 굿즈 품절 상태 (20초 타이머)
     const [isFirstItemSoldOut, setIsFirstItemSoldOut] = useState(false);
@@ -162,7 +163,7 @@ export default function MyPage() {
                                 
                                 <View style={styles.goodsText}>
                                     <Text style={styles.caption1}>{item.name}</Text>
-                                    <Text style={styles.caption2}>{item.price.toLocaleString()}원</Text>
+                                    <Text style={styles.caption2}>{(item.price || 0).toLocaleString()}원</Text>
                                 </View>
                                 
                                 <View style={styles.selectBox}>
@@ -243,11 +244,14 @@ export default function MyPage() {
                             </View>
 
                             <View style={[styles.goodsList]}>
-                            {sortedGoodsByCount.map((item, index) => (
-                                <View key={item.id} style={styles.goods}>
-                                    <View style={styles.numberCircle}>
-                                        <Text style={[styles.caption1, { color: "white" }]}>{index + 1}</Text>
-                                    </View>
+                                {eventData?.goods_popularity_rank && eventData.goods_popularity_rank.length > 0 ? (
+                                    // 컨텍스트의 popularity_rank 데이터 사용 (이미 정렬됨)
+                                    eventData.goods_popularity_rank.slice(0, 3).map((rank: any, index: number) => (
+                                        <View key={index} style={styles.goods}>
+                                            <View style={styles.numberCircle}>
+                                                <Text style={[styles.caption1, { color: "white" }]}>{rank.rank}</Text>
+                                            </View>
+
 
                                     <Image source={typeof item.image === 'string' && (item.image.startsWith('http') || item.image.startsWith('file') || item.image.startsWith('data')) ? { uri: item.image } : require("../../assets/logo.png")} style={styles.image} resizeMode="contain" />
 
