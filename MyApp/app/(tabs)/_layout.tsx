@@ -4,10 +4,12 @@ import React from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Text, View, StyleSheet } from 'react-native';
+import { EventProvider } from '../context/EventContext';
 
 export default function TabLayout() {
   return (
-    <Tabs
+    <EventProvider>
+      <Tabs
       screenOptions={{
         // 탭 바의 기본 배경색과 모양을 설정합니다.
         tabBarStyle: styles.bottomNav,
@@ -52,7 +54,8 @@ export default function TabLayout() {
           tabBarShowLabel: false, 
         }}
       />
-    </Tabs>
+      </Tabs>
+    </EventProvider>
   );
 }
 

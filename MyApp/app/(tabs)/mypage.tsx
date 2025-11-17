@@ -3,80 +3,7 @@ import React, { useState } from "react";
 import { StyleSheet, View, Text, Image, ScrollView, TouchableOpacity, Alert } from "react-native";
 import { Picker } from "@react-native-picker/picker";
 import { SafeAreaView } from "react-native-safe-area-context";
-
-// =========================================================
-// 💡 상단 UI 렌더링을 위한 최소한의 헬퍼 함수 및 데이터
-// =========================================================
-
-// 최소한의 EventData Mock (상단 UI 표시용)
-const minimalEventData: any = {
-    event_title: "간나디 랜덤 전시회",
-    event_overview: {
-        address: "일산 킨텍스 제2전시장 9, 10홀/경기도 고양시 일산서구 킨텍스로 217-60",
-        date_range: "2025-11-20 10:00~2025-11-23 18:00",
-        duration_days: 4,
-        daily_hours: "(월)10:00~18:00/(화)11:00~15:00"
-    },
-    reservation_info: {
-        open_date: "2025-10-30 14:00",
-        method: "티켓링크",
-        notes: "1인당 2매 한정"
-    },
-};
-
-const events = ["행사 1", "행사 2", "행사 3"]; // 드롭다운 콘텐츠용
-
-// D-Day 및 날짜 포맷팅에 필요한 최소한의 헬퍼 함수들
-const pad = (num: number): string => (num < 10 ? `0${num}` : `${num}`);
-
-const formatAddress = (address: string | undefined): string => {
-    if (!address) return "정보 없음";
-    const parts = address.split("/");
-    const placeName = parts[0] ? parts[0].trim() : "장소 미상";
-    const roadAddress = parts[1] ? parts[1].trim() : "주소 미상";
-    return `${placeName} (${roadAddress})`;
-};
-
-const formatDate = (dateRange: string | undefined): string => {
-    if (!dateRange || !dateRange.includes('~')) { return "정보 없음"; }
-    const [startDateTimeStr] = dateRange.split('~').map(s => s.trim());
-    const startDate = new Date(startDateTimeStr.replace(/\./g, '-').replace(/\//g, '-'));
-    if (isNaN(startDate.getTime())) { return "정보 없음"; }
-    const startDay = ['일', '월', '화', '수', '목', '금', '토'][startDate.getDay()];
-    const startFormatted = `${startDate.getFullYear()}-${pad(startDate.getMonth() + 1)}-${pad(startDate.getDate())} ${pad(startDate.getHours())}:${pad(startDate.getMinutes())}(${startDay})`;
-    return startFormatted;
-};
-
-const calculateDDay = (dateStr: string | undefined, type: '예약' | '행사'): { dday: string; date: string } => {
-    if (!dateStr || dateStr.length < 10 || dateStr === "YYYY-MM-DD HH:MM") {
-        return { dday: "D-?", date: type === '예약' ? "예약일 미정" : "행사일 미정" };
-    }
-    const targetDate = new Date(dateStr.substring(0, 10).replace(/\./g, '-'));
-    if (isNaN(targetDate.getTime())) { return { dday: "D-?", date: type === '예약' ? "예약일 미정" : "행사일 미정" }; }
-    
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    targetDate.setHours(0, 0, 0, 0);
-
-    const diffTime = targetDate.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    const dateFormatted = dateStr.substring(0, 10).replace(/-/g, '.');
-    let dday: string;
-    if (diffDays === 0) { dday = "D-DAY"; } 
-    else if (diffDays > 0) { dday = `D-${diffDays}`; } 
-    else { dday = "종료"; }
-    return { dday, date: dateFormatted };
-};
-
-const getLocalImage = (name: string) => {
-    // 실제 로컬 에셋 경로를 가정하고, 이름에 따라 다른 이미지를 반환합니다.
-    switch (name) {
-        case "ganadi.png": return require("../../assets/logo.png"); // 임시
-        case "logoWhite.png": return require("../../assets/logo.png"); // 임시
-        case "arrowdown.png": return require("../../assets/logo.png"); // 임시
-        default: return require("../../assets/logo.png"); // 기본 대체 이미지
-    }
-};
+import SharedEventHeader from '../components/SharedEventHeader';
 
 // =========================================================
 // 💡 MyPage 컴포넌트 시작
@@ -100,82 +27,15 @@ export default function MyPage() {
     };
     const sortedGoodsByCount = [...goods].sort((a, b) => b.searchCount - a.searchCount);
 
-    // --- 2. HomeDetailView 상단 UI 상태 및 데이터 ---
-    const [currentData, setCurrentData] = useState<any>(minimalEventData);
-    const [open, setOpen] = useState(false); // 드롭다운 상태
-
-    // D-Day 계산에 필요한 변수들
-    const reservationInfo = currentData.reservation_info;
-    const isNoReservationRequired =
-        !reservationInfo ||
-        (
-            (!reservationInfo.open_date || reservationInfo.open_date.trim() === "YYYY-MM-DD HH:MM") &&
-            (!reservationInfo.method || reservationInfo.method.trim() === "정보 없음" || reservationInfo.method.trim() === "") &&
-            (!reservationInfo.notes || reservationInfo.notes.trim() === "정보 없음" || reservationInfo.notes.trim() === "")
-        );
-    const { dday: reservationDDay, date: reservationDate } = calculateDDay(currentData.reservation_info?.open_date, '예약');
-    const eventStartDateStr = currentData.event_overview?.date_range?.split('~')[0]?.trim();
-    const { dday: eventDDay, date: eventDate } = calculateDDay(eventStartDateStr, '행사');
+    // Header is rendered via SharedEventHeader (reads from EventContext)
 
     // --- 3. 렌더링: 상단 UI + 나의 굿즈 목록 ---
     return (
         <SafeAreaView style={styles.safeArea}>
             <ScrollView contentContainerStyle={{ flexGrow: 1 }} showsVerticalScrollIndicator={false}>
 
-                {/* HomeDetailView 상단 UI (Image, Dropdown, Title) */}
-                <View style={styles.imageBackgroundContainer}>
-                    {/* 배경 이미지 */}
-                    <Image source={getLocalImage("ganadi.png")} style={styles.eventImage} resizeMode="cover"/>
-                    
-                    {/* ✨ 투명한 검은색 배경 오버레이 추가 ✨ */}
-                    <View style={styles.transparentOverlay} />
-                    
-                    {/* 로고 (Z-Index가 높아야 함) */}
-                    <Image source={getLocalImage("logoWhite.png")} style={styles.logo} resizeMode="contain"/>
-                    {/* 드롭다운 Wrapper */}
-                    <View style={styles.dropdownWrapper}>
-                        <TouchableOpacity style={styles.dropdown} onPress={() => setOpen(!open)} activeOpacity={0.8}>
-                            <Text style={styles.dropdownText}>{currentData.event_title || "행사 정보 없음"}</Text>
-                            <Image source={getLocalImage("arrowdown.png")}
-                                style={[styles.iconArrowBottom242, open && { transform: [{ rotate: '180deg' }] }]}
-                            />
-                        </TouchableOpacity>
-                        {open && (
-                            <View style={styles.dropdownList}>
-                                {events.filter(e => e !== currentData.event_title).map((item, idx) => (
-                                    <TouchableOpacity key={idx} style={styles.dropdownItem} onPress={() => { setOpen(false); Alert.alert("알림", `${item} 선택됨`); }} activeOpacity={0.7}>
-                                        <Text style={styles.dropdownItemText}>{item}</Text>
-                                    </TouchableOpacity>
-                                ))}
-                            </View>
-                        )}
-                    </View>
-                    {/* 상단 텍스트 오버레이 */}
-                    <View style={styles.overlayContent}>
-                        <Text style={styles.mainTitle}>{currentData.event_title || "행사명 미정"}</Text>
-                        <Text style={styles.ddayText}>
-                            {isNoReservationRequired ? (
-                                <>
-                                    <Text style={styles.preRegistration}>행사 시작</Text>
-                                    <Text style={styles.ddayValue}> {eventDDay} ({eventDate})</Text>
-                                </>
-                            ) : (
-                                <>
-                                    <Text style={styles.preRegistration}>예약 마감</Text>
-                                    <Text style={styles.ddayValue}> {reservationDDay} ({reservationDate})</Text>
-                                </>
-                            )}
-                        </Text>
-                        <View style={styles.ul}>
-                            <Text style={styles.li}>주소: {formatAddress(currentData.event_overview?.address)}</Text>
-                            <Text style={styles.li}>
-                                일시: {formatDate(currentData.event_overview?.date_range)}
-                                {currentData.event_overview?.duration_days ? ` (${currentData.event_overview.duration_days}일간)` : ""}
-                            </Text>
-                            <Text style={styles.li}>운영시간: {currentData.event_overview?.daily_hours || "정보 없음"}</Text>
-                        </View>
-                    </View>
-                </View>
+                {/* Shared header (shared between home and mypage) */}
+                <SharedEventHeader />
 
                 {/* '나의 굿즈 목록' 콘텐츠 영역 */}
                 <View style={styles.contentArea}>
@@ -191,7 +51,7 @@ export default function MyPage() {
                             <View key={item.id} style={styles.goods}>
                                 <View style={styles.numberCircle}><Text style={[styles.caption1, {color:"white"}]}>{index + 1}</Text></View>
                                 
-                                <Image source={require("../../assets/logo.png")} style={styles.image} resizeMode="contain"/>              
+                                <Image source={require("../../assets/logo.png")} style={styles.image} resizeMode="contain"/>
                                 
                                 <View style={styles.goodsText}>
                                     <Text style={styles.caption1}>{item.name}</Text>
@@ -224,7 +84,7 @@ export default function MyPage() {
                             {goods.map((item, index) => (
                                 <View key={item.id} style={styles.goodsRibbon}>
                                     <View style={styles.ribbon}>
-                                        <Image source={require("../../assets/logo.png")} // ribbon.png 대체
+                                        <Image source={require("../../assets/ribbon.png")}
                                             style={styles.ribbonImage} 
                                             resizeMode="contain"/>
                                         <Text style={styles.ribbonText}>
