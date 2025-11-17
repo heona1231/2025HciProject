@@ -1,98 +1,119 @@
 // app/(tabs)/mypage.tsx
 import React, { useState, useEffect } from "react";
-import { StyleSheet, View, Text, Image, ScrollView, TouchableOpacity, Alert } from "react-native";
+import { StyleSheet, View, Text, Image, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from "react-native";
 import { Picker } from "@react-native-picker/picker";
 import { SafeAreaView } from "react-native-safe-area-context";
 import SharedEventHeader from '../components/SharedEventHeader';
 import { useEventContext } from '../context/EventContext';
 
-// =========================================================
-// 💡 MyPage 컴포넌트 시작
-// =========================================================
+interface MyGoodsItem {
+    id: number;
+    name: string;
+    price: number;
+    image: string;
+    searchCount?: number; 
+}
+
 export default function MyPage() {
-// <<<<<<< mypage2
-//     // --- EventContext에서 현재 이벤트 데이터 가져오기 ---
-//     const { eventData, imageAnalysisData } = useEventContext();
-//     // 초기값: 로딩 중 (eventData가 있을 때까지)
-//     const [isLoadingStockInfo, setIsLoadingStockInfo] = useState(eventData ? true : false);
+    const { myGoods, eventTitle, goodsStockoutInfo, setGoodsStockoutInfo } = useEventContext();
+    const goods: MyGoodsItem[] = myGoods;
+
     
-//     // eventData 변경 시: goods_stock_info가 로드되면 로딩 해제
-//     React.useEffect(() => {
-//         if (eventData?.goods_stock_info && eventData.goods_stock_info.length > 0) {
-//             setIsLoadingStockInfo(false);
-//         }
-//     }, [eventData?.goods_stock_info]);
-
-//     // --- 1. MyPage 기존 데이터 및 로직 (굿즈 목록) ---
-//     // 컨텍스트에서 굿즈 데이터를 가져오고, 없으면 기본 목 데이터 사용
-//     const defaultGoods = [
-//         { id: 1, name: '아크릴 키링', price: 8000, image: 'https://via.placeholder.com/100', keyword: '춘식이/아크릴', searchCount: 52000 },
-//         { id: 2, name: '포토카드 세트', price: 12000, image: 'https://via.placeholder.com/100', keyword: '라이언/지류', searchCount: 15000 },
-//         { id: 3, name: '스터커 팩', price: 5000, image: 'https://via.placeholder.com/100', keyword: '어피치/지류', searchCount: 8500 },
-//     ];
-
-//     // goods_popularity_rank가 있으면 우선 사용 (검색량 순위 기반)
-//     let goods = defaultGoods;
-//     if (eventData?.goods_popularity_rank && eventData.goods_popularity_rank.length > 0) {
-//         goods = eventData.goods_popularity_rank.map((rank) => ({
-//             id: rank.rank,
-//             name: rank.goods_name,
-//             price: 0,
-//             image: 'https://via.placeholder.com/100',
-//             keyword: rank.goods_name,
-//             searchCount: rank.search_count || 0
-//         }));
-//     } else if (eventData?.goods_list && eventData.goods_list.length > 0) {
-//         // goods_popularity_rank가 없으면 goods_list 사용
-//         goods = eventData.goods_list.slice(0, 3).map((g, idx) => ({
-//             id: idx + 1,
-//             name: g.goods_name,
-//             price: parseInt(String(g.price || '').replace(/[^0-9]/g, '')) || 0,
-//             image: 'https://via.placeholder.com/100',
-//             keyword: g.goods_name,
-//             searchCount: 0
-//         }));
-//     }
-
-//     // --- 추가: 검색량/인기도 추정 (A: 검색량 지표, B: 소셜/이미지 기반 신호 혼합) ---
-//     // imageAnalysisData.uploaded_images 또는 eventData.uploaded_images를 소셜/관심 신호로 사용
-//     const uploadedCount = (imageAnalysisData?.uploaded_images?.length || eventData?.uploaded_images?.length || 0);
-
-//     // derivedGoods: 화면에 사용할 최대 3개의 굿즈에 대해 blended searchCount 및 popularityScore 추가
-//     const derivedGoods = goods.slice(0, 3).map((item, idx) => {
-//         // A: 트렌드/검색량 (있다면 사용)
-//         const trendCount = (item.searchCount && typeof item.searchCount === 'number') ? item.searchCount : 0;
-
-//         // B: 소셜/이미지 신호 (업로드된 이미지 수에 비례하는 단순한 proxy)
-//         const socialSignal = uploadedCount * 500; // 1 image -> 500 검색량 가중치 (휴리스틱)
-
-//         // 가중 혼합 (70% 트렌드, 30% 소셜)
-//         const blended = Math.round(trendCount * 0.7 + socialSignal * 0.3);
-
-//         // 인간 친화적 표기: '약 N천 건' -> k 단위 (rounded)
-//         const approxK = Math.max(0, Math.round(blended / 1000));
-
-//         return {
-//             ...item,
-//             searchCount: blended,
-//             searchApproxK: approxK,
-//         };
-//     });
-
-//     const [priorities, setPriorities] = useState(["1", "2", "3"]);
-// =======
-    // --- 1. EventContext에서 굿즈 목록 가져오기 ---
-    const { myGoods } = useEventContext();
-    const goods = myGoods;
-    
+    // 첫 번째 굿즈 품절 상태 (20초 타이머)
+    const [isFirstItemSoldOut, setIsFirstItemSoldOut] = useState(false);
     const [priorities, setPriorities] = useState<string[]>(
         goods.map((_, index) => String((index % 3) + 1))
     );
+    const [loadingStockout, setLoadingStockout] = useState(false);
 
-    // 💡 굿즈 목록이 변경될 때마다 priorities 업데이트
+    // 굿즈 목록 변경 시 priorities 업데이트
     useEffect(() => {
         setPriorities(goods.map((_, index) => String((index % 3) + 1)));
     }, [goods.length]);
+
+    // 20초 후 첫 번째 굿즈 품절 처리
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (goods.length > 0) {
+                setIsFirstItemSoldOut(true);
+            }
+        }, 20000);
+        return () => clearTimeout(timer);
+    }, [goods.length]);
+
+    // 과거 행사 품절 정보 가져오기
+    useEffect(() => {
+        if (eventTitle && goods.length > 0 && !goodsStockoutInfo) {
+            fetchPastEventStockoutInfo();
+        }
+    }, [eventTitle, goods.length]);
+
+    const fetchPastEventStockoutInfo = async () => {
+        if (loadingStockout) return;
+        
+        setLoadingStockout(true);
+        try {
+            const response = await fetch('http://localhost:4000/search-past-events', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ event_title: eventTitle })
+            });
+
+            if (!response.ok) {
+                throw new Error('과거 행사 정보를 가져오는데 실패했습니다.');
+            }
+
+            const data = await response.json();
+            
+            if (data.success && data.pastEvents) {
+                const stockoutText = extractStockoutInfo(data.pastEvents);
+                setGoodsStockoutInfo(stockoutText);
+            }
+        } catch (error) {
+            console.error('품절 정보 로딩 오류:', error);
+            setGoodsStockoutInfo("품절 정보를 불러올 수 없습니다.");
+        } finally {
+            setLoadingStockout(false);
+        }
+    };
+
+    // 품절이 포함된 문장 2개만 추출
+    const extractStockoutInfo = (pastEvents: any): string => {
+        const feedback = pastEvents?.feedback;
+        
+        if (!feedback || !feedback.goods || feedback.goods.length === 0) {
+            return "이전 행사 품절 정보가 없습니다.";
+        }
+
+        // 품절이 포함된 description만 필터링
+        const stockoutSentences = feedback.goods
+            .filter((item: any) => item.description && item.description.includes('품절'))
+            .map((item: any) => item.description)
+            .slice(0, 2); // 최대 2개만
+
+        if (stockoutSentences.length === 0) {
+            return "이전 행사에서 품절된 굿즈가 없었습니다.";
+        }
+
+        return stockoutSentences.join('\n\n');
+    };
+
+    // 임의 검색량 생성 함수
+    const generateRandomSearchCount = (index: number): number => {
+        const seed = goods[index]?.id || index;
+        const baseCount = 1000;
+        const maxCount = 50000;
+        const randomFactor = (seed * 9301 + 49297) % 233280;
+        const searchCount = baseCount + (randomFactor % (maxCount - baseCount));
+        
+        return Math.floor(searchCount);
+    };
+
+    // 굿즈에 검색량 추가
+    const goodsWithSearchCount: MyGoodsItem[] = goods.map((item, index) => ({
+        ...item,
+        searchCount: item.searchCount || generateRandomSearchCount(index)
+    }));
 
     const updatePriority = (index: number, newValue: string) => {
         const oldValue = priorities[index];
@@ -104,17 +125,15 @@ export default function MyPage() {
         setPriorities(updated);
     };
 
-    // Header is rendered via SharedEventHeader (reads from EventContext)
+    // 검색량 순으로 정렬
+    const sortedGoodsByCount: MyGoodsItem[] = [...goodsWithSearchCount].sort((a, b) => (b.searchCount || 0) - (a.searchCount || 0));
 
-    // --- 3. 렌더링: 상단 UI + 나의 굿즈 목록 ---
     return (
         <SafeAreaView style={styles.safeArea}>
             <ScrollView contentContainerStyle={{ flexGrow: 1 }} showsVerticalScrollIndicator={false}>
 
-                {/* Shared header (shared between home and mypage) */}
                 <SharedEventHeader />
 
-                {/* '나의 굿즈 목록' 콘텐츠 영역 */}
                 <View style={styles.contentArea}>
                     <View style={[styles.frame, {gap:34}]}>
                         <View style={[styles.frame, {gap:4}]}>
@@ -124,11 +143,23 @@ export default function MyPage() {
                         
                         {/* 굿즈목록 */}
                         <View style={[styles.goodsList]}>
-                        {derivedGoods.map((item, index) => (
+                        {goodsWithSearchCount.map((item, index) => (
                             <View key={item.id} style={styles.goods}>
+                                
+                                {/* 품절 오버레이 */}
+                                {index === 0 && isFirstItemSoldOut && (
+                                    <View style={styles.soldOutOverlay}>
+                                        <Text style={styles.soldOutText}>품절되었어요.</Text>
+                                    </View>
+                                )}
+                                
                                 <View style={styles.numberCircle}><Text style={[styles.caption1, {color:"white"}]}>{index + 1}</Text></View>
                                 
-                                <Image source={typeof item.image === 'string' && (item.image.startsWith('http') || item.image.startsWith('file') || item.image.startsWith('data')) ? { uri: item.image } : require("../../assets/logo.png")} style={styles.image} resizeMode="contain"/>
+                                <Image 
+                                    source={typeof item.image === 'string' && (item.image.startsWith('http') || item.image.startsWith('file') || item.image.startsWith('data')) ? { uri: item.image } : require("../../assets/logo.png")} 
+                                    style={styles.image} 
+                                    resizeMode="contain"
+                                />
                                 
                                 <View style={styles.goodsText}>
                                     <Text style={styles.caption1}>{item.name}</Text>
@@ -152,13 +183,14 @@ export default function MyPage() {
 
                         <View style={styles.divider} />
 
+                        {/* 굿즈 인기도 정보 */}
                         <View style={[styles.frame, {gap:4}]}>
                             <Text style={styles.head2}>굿즈 인기도 정보</Text>
                             <Text style={styles.caption1}>각 굿즈 관련 키워드 검색량, 게시글 수에 따라{"\n"}구매 가능성이 높은 순위를 말씀드려요.</Text>
                         </View>
 
                         <View style={styles.goodsRibbonList}>
-                            {derivedGoods.map((item, index) => (
+                            {goodsWithSearchCount.slice(0, 3).reverse().map((item, index) => (
                                 <View key={item.id} style={styles.goodsRibbon}>
                                     <View style={styles.ribbon}>
                                         <Image source={require("../../assets/ribbon.png")}
@@ -169,8 +201,8 @@ export default function MyPage() {
                                     </View>
 
                                     <View style={styles.circularImageContainer}>
-                                            <Image 
-                                                source={typeof item.image === 'string' && (item.image.startsWith('http') || item.image.startsWith('file') || item.image.startsWith('data')) ? { uri: item.image } : require("../../assets/logo.png")}
+                                        <Image 
+                                            source={typeof item.image === 'string' && (item.image.startsWith('http') || item.image.startsWith('file') || item.image.startsWith('data')) ? { uri: item.image } : require("../../assets/logo.png")}
                                             style={styles.circularImage} 
                                             resizeMode="contain"/>
                                     </View>
@@ -179,44 +211,32 @@ export default function MyPage() {
                                 </View>))}
                         </View>
                         
+                        {/* AI 기반 품절 정보 섹션 */}
                         <View style={[styles.frame, {gap:12}]}>
                             <Text style={[styles.caption1, {color:"#FF59AD"}]}>지난 행사 굿즈 품절정보</Text>
-                            {eventData?.goods_stock_info && eventData.goods_stock_info.length > 0 ? (
-                                <View style={[styles.frame, {gap:12}]}>
-                                    {eventData.goods_stock_info.slice(0, 3).map((stock: any, idx: number) => {
-                                        // 해당 굿즈 인덱스의 이미지 가져오기
-                                        const uploadedImgs = eventData.uploaded_images || [];
-                                        const userImg = uploadedImgs[idx] || null;
-
-                                        return (
-                                            <View key={idx} style={styles.stockInfoItem}>
-                                                {/* 이미지 */}
-                                                {userImg && (
-                                                    <Image source={{ uri: userImg }} style={styles.stockImage} resizeMode="cover" />
-                                                )}
-                                                
-                                                {/* 텍스트 정보 */}
-                                                <View style={styles.stockTextContainer}>
-                                                    <Text style={styles.caption1}>{stock.goods_name}</Text>
-                                                    <Text style={styles.caption2}>
-                                                        {stock.sold_out_minutes}분 만에 품절
-                                                    </Text>
-                                                </View>
-                                            </View>
-                                        );
-                                    })}
-                                </View>
-                            ) : isLoadingStockInfo ? (
-                                <View style={[styles.frame, {gap:4}]}>
-                                    <Text style={styles.caption1}>정보를 불러오는 중입니다...</Text>
-                                </View>
-                            ) : (
-                                <View style={[styles.frame, {gap:4}]}>
-                                    <Text style={styles.caption1}>품절 정보를 찾을 수 없습니다.</Text>
-                                </View>
-                            )}
+                            <View style={[styles.frame, {gap:4}]}>
+                                {loadingStockout ? (
+                                    <View style={styles.loadingContainer}>
+                                        <ActivityIndicator size="small" color="#FF59AD" />
+                                        <Text style={[styles.caption2, {marginLeft: 8}]}>품절 정보 분석 중...</Text>
+                                    </View>
+                                ) : (
+                                    <View style={[styles.frame, { gap: 8 }]}>
+                                        {goodsStockoutInfo ? (
+                                            goodsStockoutInfo.split('\n\n').map((paragraph, index) => (
+                                                <Text key={index} style={styles.caption1}>
+                                                    {paragraph}
+                                                </Text>
+                                            ))
+                                        ) : (
+                                            <Text style={styles.caption1}>품절 정보를 불러오는 중입니다.</Text>
+                                        )}
+                                    </View>
+                                )}
+                            </View>
                         </View>
 
+                        {/* 검색량 순위 섹션 */}
                         <View style={[styles.frame, {gap:20}]}>
                             <View style={[styles.frame, {gap:4}]}>
                                 <Text style={[styles.caption1, {color:"#FF59AD"}]}>검색량 순위</Text>
@@ -235,33 +255,14 @@ export default function MyPage() {
 
                                     <Image source={typeof item.image === 'string' && (item.image.startsWith('http') || item.image.startsWith('file') || item.image.startsWith('data')) ? { uri: item.image } : require("../../assets/logo.png")} style={styles.image} resizeMode="contain" />
 
-                                            <View style={styles.goodsText}>
-                                                <Text style={styles.caption1}>{rank.goods_name}</Text>
-                                                <Text style={styles.caption2}>검색 결과 {" "}
-                                                    <Text style={{ color: '#FF59AD', fontWeight: 'bold' }}>{rank.search_count.toLocaleString()}</Text>
-                                                개</Text>
-                                            </View>
-                                        </View>
-                                    ))
-                                ) : (
-                                    // 폴백: derivedGoods를 searchCount로 정렬하여 상위 3개만 표시
-                                    [...derivedGoods].sort((a, b) => b.searchCount - a.searchCount).slice(0, 3).map((item: any, index: number) => (
-                                        <View key={item.id} style={styles.goods}>
-                                            <View style={styles.numberCircle}>
-                                                <Text style={[styles.caption1, { color: "white" }]}>{index + 1}</Text>
-                                            </View>
-
-                                            <Image source={require("../../assets/logo.png")} style={styles.image} resizeMode="contain" />
-
-                                            <View style={styles.goodsText}>
-                                                <Text style={styles.caption1}>{item.name}</Text>
-                                                <Text style={styles.caption2}>검색 결과 {" "}
-                                                    <Text style={{ color: '#FF59AD', fontWeight: 'bold' }}>{item.searchCount.toLocaleString()}</Text>
-                                                개 (약 {item.searchApproxK}k)</Text>
-                                            </View>
-                                        </View>
-                                    ))
-                                )}
+                                    <View style={styles.goodsText}>
+                                        <Text style={styles.caption1}>{item.name}</Text>
+                                        <Text style={styles.caption2}>검색 결과 {" "}
+                                            <Text style={{ color: '#FF59AD', fontWeight: 'bold' }}>{item.searchCount?.toLocaleString() || 0}</Text>
+                                            개</Text>
+                                    </View>
+                                </View>
+                            ))}
                             </View>
                         </View>
                     </View>
@@ -272,23 +273,11 @@ export default function MyPage() {
     );
 }
 
-// =========================================================
-// 💡 스타일 (투명 오버레이 스타일 추가 및 불필요한 스타일 제거)
-// =========================================================
 const styles = StyleSheet.create({
-    // --- 상단 UI 스타일 ---
     safeArea: { flex: 1, backgroundColor: "#fff" }, 
     imageBackgroundContainer: { height: 480, width: '100%', overflow: 'hidden', position: 'relative' },
-    
-    // ✨ 새로 추가된 투명한 검은색 오버레이 스타일 ✨
-    transparentOverlay: {
-        ...StyleSheet.absoluteFillObject, // 부모 View 전체를 덮음
-        backgroundColor: 'rgba(0, 0, 0, 0.4)', // 40% 투명한 검은색
-    },
-
+    transparentOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0, 0, 0, 0.4)' },
     eventImage: { width: 219, height: 274, position: 'absolute', top: 162, left: '50%', marginLeft: -109 },
-    // eventImageCover (black.png) 스타일 제거됨
-
     logo: { width: 123, height: 22, marginBottom: 28, marginTop: 56, marginLeft: 16, zIndex: 10 },
     dropdownWrapper: { position: 'absolute', top: 100, left: 16, width: 328, zIndex: 10 },
     dropdown: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(239, 239, 239, 0.50)', height: 48, borderRadius: 12, paddingHorizontal: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
@@ -304,14 +293,20 @@ const styles = StyleSheet.create({
     ddayValue: { color: '#FF59AD', fontSize: 20, fontWeight: '700' },
     ul: { marginVertical: 8, paddingLeft: 0 },
     li: { marginBottom: 4, fontSize: 12, color: '#fff', lineHeight: 20 },
-
-    // --- 굿즈 목록 스타일 ---
     contentArea: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 16, paddingTop: 33, paddingBottom: 20, marginTop: -12, zIndex: 1, overflow: 'hidden' },
     frame:{ alignItems: "flex-start", justifyContent: "flex-start", gap: 10 },
     divider: { width: "100%", height: 1, backgroundColor: "#E0E0E0", marginVertical: 10 },
     goodsList:{ alignItems: "flex-start", justifyContent: "flex-start", gap: 20, width:"100%" },
     goodsText:{ alignItems: "flex-start", justifyContent: "flex-start", gap: 4, flex: 1 },
-    goods:{ height: 64, flexDirection: 'row', alignItems: "center", gap: 16, justifyContent: "flex-start", width:"100%" },
+    goods:{ 
+        height: 64, 
+        flexDirection: 'row', 
+        alignItems: "center", 
+        gap: 16, 
+        justifyContent: "flex-start", 
+        width:"100%", 
+        position: 'relative'
+    },
     numberCircle: { width: 18, height: 18, borderRadius: 9, backgroundColor: "#000", justifyContent: "center", alignItems: "center" },
     image: { width: 64, height: 64, borderRadius: 10 },
     selectBox: { marginLeft:"auto", alignSelf: 'center', width: 63, height: 30, borderRadius: 10, justifyContent: "center" },
@@ -326,7 +321,18 @@ const styles = StyleSheet.create({
     head2: { fontSize: 20, fontWeight: "bold" },
     caption1: { fontSize: 14, color: "black", fontWeight: "600" },
     caption2: { fontSize: 12, color: "black", fontWeight: "600" },
-    stockInfoItem: { flexDirection: 'row', alignItems: 'center', gap: 12, width: '100%', backgroundColor: '#F9F9F9', borderRadius: 12, padding: 12 },
-    stockImage: { width: 60, height: 60, borderRadius: 8 },
-    stockTextContainer: { flex: 1, gap: 4 },
+    loadingContainer: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 },
+    soldOutOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 20,
+        borderRadius: 0,
+    },
+    soldOutText: {
+        fontSize: 14,
+        fontWeight: 'bold',
+        color: 'white',
+    },
 });
