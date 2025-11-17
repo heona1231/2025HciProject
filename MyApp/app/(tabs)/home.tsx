@@ -13,6 +13,7 @@ import { ViewState, EventData, SimpleEventCardData } from '../data/types';
 import HomeInputView from '../components/HomeInputView';
 import HomeDetailView from '../components/HomeDetailView';
 import HomeDefaultView from '../components/HomeDefaultView'; // HomeDefaultView 임포트
+import { useEventContext } from '../context/EventContext';
 declare module 'expo-file-system' {
   export enum EncodingType {
     UTF8 = 'utf8',
@@ -124,8 +125,8 @@ else {
 // 메인 컨테이너 컴포넌트
 const HomeScreen: React.FC = () => {
     const [currentView, setCurrentView] = useState<ViewState>('DEFAULT');
-    const [eventData, setEventData] = useState<EventData | null>(null);
-    const [imageAnalysisData, setImageAnalysisData] = useState<any | null>(null);
+    // 전역 컨텍스트 사용
+    const { eventData, setEventData, imageAnalysisData, setImageAnalysisData } = useEventContext();
     const [isLoading, setIsLoading] = useState(false);
 
     /**
@@ -300,7 +301,7 @@ const HomeScreen: React.FC = () => {
 
             const finalEventData = mergeAnalysisData(baseData, goodsDataResponse);
 
-            // 2-1. 데이터 저장
+            // 2-1. 데이터 저장 (전역 컨텍스트)
             setEventData(finalEventData);
 
             // If imageAnalysisData exists but not set (edge cases), ensure it's preserved

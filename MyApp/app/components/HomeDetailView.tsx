@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import SharedEventHeader from './SharedEventHeader';
 // Stack.Screen을 사용하려면 @react-navigation/native-stack이 필요하지만, 여기서는 무시합니다.
 // import { Stack } from 'expo-router'; // 필요한 경우
 
@@ -541,99 +542,8 @@ const HomeDetailView: React.FC<HomeDetailViewProps> = ({ data: currentData, imag
 
             <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
 
-                {/* 상단 이미지 + 그라데이션 */}
-                <View style={styles.imageBackgroundContainer}>
-
-                    {/* 배경 이미지 */}
-                    <Image
-                        source={getLocalImage("ganadi.png")}
-                        style={styles.eventImage}
-                        resizeMode="cover"
-                    />
-                    <Image
-                        source={getLocalImage("black.png")}
-                        style={styles.eventImageCover}
-                        resizeMode="cover"
-                    />
-
-                    {/* 로고 */}
-                    <Image
-                        source={getLocalImage("logoWhite.png")}
-                        style={styles.logo}
-                        resizeMode="contain"
-                    />
-
-
-                    {/* 드롭다운 Wrapper */}
-                    <View style={styles.dropdownWrapper}>
-                        <TouchableOpacity
-                            style={styles.dropdown}
-                            onPress={() => setOpen(!open)}
-                            activeOpacity={0.8}
-                        >
-                            <Text style={styles.dropdownText}>{currentData.event_title || "행사 정보 없음"}</Text>
-                            <Image
-                                source={getLocalImage("arrowdown.png")}
-                                style={[
-                                    styles.iconArrowBottom242,
-                                    open && { transform: [{ rotate: '180deg' }] } // 열리면 화살표 뒤집기
-                                ]}
-                            />
-                        </TouchableOpacity>
-
-                        {open && (
-                            <View style={styles.dropdownList}>
-                                {events.filter(e => e !== currentData.event_title).map((item, idx) => (
-                                    <TouchableOpacity
-                                        key={idx}
-                                        style={styles.dropdownItem}
-                                        onPress={() => {
-                                            // setSelectedEvent(item) 대신 setOpen(false)만 호출
-                                            setOpen(false);
-                                            // 실제 데이터 로딩 로직 필요
-                                        }}
-                                        activeOpacity={0.7}
-                                    >
-                                        <Text style={styles.dropdownItemText}>{item}</Text>
-                                    </TouchableOpacity>
-                                ))}
-                            </View>
-                        )}
-                    </View>
-
-
-                    {/* 상단 텍스트 오버레이 */}
-                    <View style={styles.overlayContent}>
-                        <Text style={styles.mainTitle}>{currentData.event_title || "행사명 미정"}</Text>
-                        <Text style={styles.ddayText}>
-                            {/* 정책 2: 디데이 표시 */}
-                            {isNoReservationRequired ? (
-                                <>
-                                    <Text style={styles.preRegistration}>행사 시작</Text>
-                                    <Text style={styles.ddayValue}> {eventDDay} ({eventDate})</Text>
-                                </>
-                            ) : (
-                                <>
-                                    <Text style={styles.preRegistration}>예약 마감</Text>
-                                    <Text style={styles.ddayValue}> {reservationDDay} ({reservationDate})</Text>
-                                </>
-                            )}
-                        </Text>
-                        <View style={styles.ul}>
-                            {/* 정책 1-1: 주소 표시 */}
-                            <Text style={styles.li}>
-                                주소: {formatAddress(currentData.event_overview?.address)}
-                            </Text>
-                            {/* 정책 1-2: 일시 표시 */}
-                            <Text style={styles.li}>
-                                일시: {formatDate(currentData.event_overview?.date_range)}
-                                {currentData.event_overview?.duration_days ? ` (${currentData.event_overview.duration_days}일간)` : ""}
-                            </Text>
-                            {/* 운영시간: 데이터 그대로 표시 */}
-                            <Text style={styles.li}>운영시간: {currentData.event_overview?.daily_hours || "정보 없음"}</Text>
-                        </View>
-                    </View>
-                </View>
+                {/* 상단 헤더: 상세뷰에서만 표시 (HomeDetailView에서는 현재의 상세 데이터 전달) */}
+                <SharedEventHeader data={currentData} imageData={imageData} />
 
                 {/* 콘텐츠 영역 (탭과 내용) */}
                 <View style={styles.contentArea}>
@@ -735,134 +645,8 @@ const HomeDetailView: React.FC<HomeDetailViewProps> = ({ data: currentData, imag
 
 
 const styles = StyleSheet.create({
-    // --- 사용자가 제공한 상단 UI 스타일 ---
+    // --- 사용자가 제공한 상단 UI 스타일은 `SharedEventHeader`로 이동하여 재사용합니다 ---
     safeArea: { flex: 1, backgroundColor: "#fff" }, // 배경색 변경됨
-    imageBackgroundContainer: {
-        height: 480,
-        width: '100%',
-        overflow: 'hidden',
-        // backgroundColor: '#000', // 제거
-        position: 'relative',
-    },
-    eventImage: {
-        width: 219,
-        height: 274,
-        position: 'absolute',
-        top: 162,
-        left: '50%',
-        marginLeft: -109,
-    },
-    eventImageCover: {
-        width: 360,
-        height: 480,
-        position: 'absolute',
-        // backgroundColor: 'rgba(0,0,0,0.5)' // 제거
-    },
-
-    logo: {
-        width: 123,
-        height: 22,
-        marginBottom: 28,
-        marginTop: 56,
-        marginLeft: 16,
-        zIndex: 10,
-        // opacity: 0.1 // 제거
-    },
-
-    backButton: { position: 'absolute', top: 56, left: 16, zIndex: 30, padding: 5 },
-
-    dropdownWrapper: {
-        position: 'absolute',
-        top: 100, // 기존 90에서 100으로 변경
-        left: 16,
-        width: 328, // right: 16 대신 width 설정
-        zIndex: 10,
-    },
-    dropdown: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        backgroundColor: 'rgba(239, 239, 239, 0.50)', // 배경색 변경
-        height: 48,
-        borderRadius: 12,
-        paddingHorizontal: 16,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 3,
-    },
-    dropdownText: {
-        fontSize: 12, // 크기 변경
-        color: '#616161', // 색상 변경
-        fontWeight: '600',
-    },
-    dropdownList: {
-        position: 'absolute',
-        top: 52,
-        left: 0,
-        right: 0,
-        backgroundColor: '#FFF',
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: '#E0E0E0',
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 3,
-        maxHeight: 200,
-        overflow: 'hidden',
-        zIndex: 20, // zIndex 조정
-    },
-    dropdownItem: {
-        paddingVertical: 14,
-        paddingHorizontal: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: '#F0F0F0',
-    },
-    dropdownItemText: {
-        fontSize: 14,
-        color: '#444',
-    },
-    iconArrowBottom242: {
-        width: 20,
-        height: 20,
-        tintColor: '#616161',
-    },
-
-    overlayContent: {
-        position: 'absolute',
-        top: 150, // bottom 0 대신 top 150으로 변경
-        left: 16,
-        right: 16,
-        zIndex: 2,
-        // paddingBottom: 20, // 제거
-    },
-    mainTitle: {
-        fontSize: 28,
-        fontWeight: '700',
-        color: '#fff',
-        marginBottom: 8,
-        marginTop: 119, // 추가된 마진
-    },
-    ddayText: {
-        fontSize: 16, // 크기 변경
-        fontWeight: '600',
-        color: '#fff',
-        marginBottom: 24
-    },
-    preRegistration: {
-        color: '#fff',
-        fontSize: 14
-    },
-    ddayValue: {
-        color: '#FF59AD',
-        fontSize: 20,
-        fontWeight: '700'
-    },
-    ul: { marginVertical: 8, paddingLeft: 0 },
-    li: { marginBottom: 4, fontSize: 12, color: '#fff', lineHeight: 20 },
 
     // --- 기존 하단 및 컨텐츠 스타일 (유지) ---
     contentArea: {
