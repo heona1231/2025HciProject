@@ -81,16 +81,12 @@ const createDummyEventData = (link: string, images: string[]): EventData => ({
         { title: "오프닝 세리머니", description: "화려한 오프닝 공연과 함께 행사 시작을 알립니다." },
         { title: "작가 사인회", description: "유명 웹툰 작가들의 사인회가 3일간 진행됩니다." }
     ],
-    event_benefits: [
-        // "사전 등록 시 한정판 엽서 증정",
-        // "현장 이벤트 참여 시 경품 제공"
-    ],
-    goods_list: [
-        //왜인지 이게 있으면 안됨
-        // { goods_name: "한정판 캐릭터 인형", price: "50,000원" },
-        // { goods_name: "오리지널 OST CD", price: "25,000원" }
-    ],
+    event_benefits: [],
+    goods_list: [],
     uploaded_images: images
+    // 🔥 주의: goods_stock_info, goods_popularity_rank는 Mock 데이터이므로 제거됨
+    // 실제 데이터는 HomeDetailView의 fetchPastEvents에서 API 호출로 가져오거나
+    // 서버 응답(링크/이미지 분석)에서 받아야 함
 });
 
 
@@ -116,6 +112,10 @@ else {
     mergedData.event_benefits = Array.from(new Set(allBenefits.filter(b => b && String(b).trim() !== '')));
 
     mergedData.uploaded_images = imageData?.uploaded_images || [];
+
+    // 🔥 Mock 데이터 제거: goods_stock_info, goods_popularity_rank는 서버/API에서만 받아야 함
+    // 만약 링크 분석 결과에서 이미 있다면 유지, 없으면 undefined
+    // (mypage에서 로딩 상태가 제대로 작동하도록 undefined 상태 유지 필수)
 
     return mergedData;
 };
@@ -269,6 +269,9 @@ const HomeScreen: React.FC = () => {
                             
                             goodsDataResponse = imageResponse.data;
                             setImageAnalysisData(imageResponse.data);
+                            // 디버깅: 이미지 분석 결과의 주요 필드 확인
+                            console.log('DEBUG imageAnalysisData.uploaded_images:', imageResponse.data.uploaded_images);
+                            console.log('DEBUG imageAnalysisData.goods_list:', imageResponse.data.goods?.goods_list?.length);
                         } else {
                             throw new Error(`이미지 분석 실패: ${imageResponse.data?.error || '알 수 없는 오류'}`);
                         }
@@ -302,6 +305,10 @@ const HomeScreen: React.FC = () => {
             const finalEventData = mergeAnalysisData(baseData, goodsDataResponse);
 
             // 2-1. 데이터 저장 (전역 컨텍스트)
+            // 디버깅: finalEventData에 필요한 필드가 포함되어 있는지 로그로 확인
+            console.log('DEBUG finalEventData.goods_stock_info:', finalEventData.goods_stock_info);
+            console.log('DEBUG finalEventData.goods_popularity_rank:', finalEventData.goods_popularity_rank);
+            console.log('DEBUG finalEventData.uploaded_images (length):', finalEventData.uploaded_images?.length);
             setEventData(finalEventData);
 
             // If imageAnalysisData exists but not set (edge cases), ensure it's preserved
@@ -328,6 +335,10 @@ const HomeScreen: React.FC = () => {
                 try {
                     const baseData = eventDataResponse || createDummyEventData(link, images);
                     const finalEventData = mergeAnalysisData(baseData, goodsDataResponse);
+                    // 에러 발생 후 병합한 데이터 저장 (디버깅 로그 추가)
+                    console.log('DEBUG (error path) finalEventData.goods_stock_info:', finalEventData.goods_stock_info);
+                    console.log('DEBUG (error path) finalEventData.goods_popularity_rank:', finalEventData.goods_popularity_rank);
+                    console.log('DEBUG (error path) finalEventData.uploaded_images (length):', finalEventData.uploaded_images?.length);
                     setEventData(finalEventData);
                     setCurrentView('DETAIL');
                 } catch (mergeErr) {
