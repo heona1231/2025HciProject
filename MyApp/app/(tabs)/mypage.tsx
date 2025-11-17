@@ -4,17 +4,80 @@ import { StyleSheet, View, Text, Image, ScrollView, TouchableOpacity, Alert } fr
 import { Picker } from "@react-native-picker/picker";
 import { SafeAreaView } from "react-native-safe-area-context";
 import SharedEventHeader from '../components/SharedEventHeader';
+import { useEventContext } from '../context/EventContext';
 
 // =========================================================
 // 💡 MyPage 컴포넌트 시작
 // =========================================================
 export default function MyPage() {
+    // --- EventContext에서 현재 이벤트 데이터 가져오기 ---
+    const { eventData, imageAnalysisData } = useEventContext();
+    // 초기값: 로딩 중 (eventData가 있을 때까지)
+    const [isLoadingStockInfo, setIsLoadingStockInfo] = useState(eventData ? true : false);
+    
+    // eventData 변경 시: goods_stock_info가 로드되면 로딩 해제
+    React.useEffect(() => {
+        if (eventData?.goods_stock_info && eventData.goods_stock_info.length > 0) {
+            setIsLoadingStockInfo(false);
+        }
+    }, [eventData?.goods_stock_info]);
+
     // --- 1. MyPage 기존 데이터 및 로직 (굿즈 목록) ---
-    const goods = [
+    // 컨텍스트에서 굿즈 데이터를 가져오고, 없으면 기본 목 데이터 사용
+    const defaultGoods = [
         { id: 1, name: '아크릴 키링', price: 8000, image: 'https://via.placeholder.com/100', keyword: '춘식이/아크릴', searchCount: 52000 },
         { id: 2, name: '포토카드 세트', price: 12000, image: 'https://via.placeholder.com/100', keyword: '라이언/지류', searchCount: 15000 },
-        { id: 3, name: '스터커 팩', price: 5000, image: 'https://via.placeholder.com/100', keyword: '어피치/지류', searchCount: 38000 },
+        { id: 3, name: '스터커 팩', price: 5000, image: 'https://via.placeholder.com/100', keyword: '어피치/지류', searchCount: 8500 },
     ];
+
+    // goods_popularity_rank가 있으면 우선 사용 (검색량 순위 기반)
+    let goods = defaultGoods;
+    if (eventData?.goods_popularity_rank && eventData.goods_popularity_rank.length > 0) {
+        goods = eventData.goods_popularity_rank.map((rank) => ({
+            id: rank.rank,
+            name: rank.goods_name,
+            price: 0,
+            image: 'https://via.placeholder.com/100',
+            keyword: rank.goods_name,
+            searchCount: rank.search_count || 0
+        }));
+    } else if (eventData?.goods_list && eventData.goods_list.length > 0) {
+        // goods_popularity_rank가 없으면 goods_list 사용
+        goods = eventData.goods_list.slice(0, 3).map((g, idx) => ({
+            id: idx + 1,
+            name: g.goods_name,
+            price: parseInt(String(g.price || '').replace(/[^0-9]/g, '')) || 0,
+            image: 'https://via.placeholder.com/100',
+            keyword: g.goods_name,
+            searchCount: 0
+        }));
+    }
+
+    // --- 추가: 검색량/인기도 추정 (A: 검색량 지표, B: 소셜/이미지 기반 신호 혼합) ---
+    // imageAnalysisData.uploaded_images 또는 eventData.uploaded_images를 소셜/관심 신호로 사용
+    const uploadedCount = (imageAnalysisData?.uploaded_images?.length || eventData?.uploaded_images?.length || 0);
+
+    // derivedGoods: 화면에 사용할 최대 3개의 굿즈에 대해 blended searchCount 및 popularityScore 추가
+    const derivedGoods = goods.slice(0, 3).map((item, idx) => {
+        // A: 트렌드/검색량 (있다면 사용)
+        const trendCount = (item.searchCount && typeof item.searchCount === 'number') ? item.searchCount : 0;
+
+        // B: 소셜/이미지 신호 (업로드된 이미지 수에 비례하는 단순한 proxy)
+        const socialSignal = uploadedCount * 500; // 1 image -> 500 검색량 가중치 (휴리스틱)
+
+        // 가중 혼합 (70% 트렌드, 30% 소셜)
+        const blended = Math.round(trendCount * 0.7 + socialSignal * 0.3);
+
+        // 인간 친화적 표기: '약 N천 건' -> k 단위 (rounded)
+        const approxK = Math.max(0, Math.round(blended / 1000));
+
+        return {
+            ...item,
+            searchCount: blended,
+            searchApproxK: approxK,
+        };
+    });
+
     const [priorities, setPriorities] = useState(["1", "2", "3"]);
     const updatePriority = (index: number, newValue: string) => {
         const oldValue = priorities[index];
@@ -25,7 +88,6 @@ export default function MyPage() {
         if (targetIndex !== -1) { updated[targetIndex] = oldValue; }
         setPriorities(updated);
     };
-    const sortedGoodsByCount = [...goods].sort((a, b) => b.searchCount - a.searchCount);
 
     // Header is rendered via SharedEventHeader (reads from EventContext)
 
@@ -47,7 +109,7 @@ export default function MyPage() {
                         
                         {/* 굿즈목록 */}
                         <View style={[styles.goodsList]}>
-                        {goods.map((item, index) => (
+                        {derivedGoods.map((item, index) => (
                             <View key={item.id} style={styles.goods}>
                                 <View style={styles.numberCircle}><Text style={[styles.caption1, {color:"white"}]}>{index + 1}</Text></View>
                                 
@@ -55,7 +117,7 @@ export default function MyPage() {
                                 
                                 <View style={styles.goodsText}>
                                     <Text style={styles.caption1}>{item.name}</Text>
-                                    <Text style={styles.caption2}>{item.price.toLocaleString()}원</Text>
+                                    <Text style={styles.caption2}>{(item.price || 0).toLocaleString()}원</Text>
                                 </View>
                                 
                                 <View style={styles.selectBox}>
@@ -81,7 +143,7 @@ export default function MyPage() {
                         </View>
 
                         <View style={styles.goodsRibbonList}>
-                            {goods.map((item, index) => (
+                            {derivedGoods.map((item, index) => (
                                 <View key={item.id} style={styles.goodsRibbon}>
                                     <View style={styles.ribbon}>
                                         <Image source={require("../../assets/ribbon.png")}
@@ -103,11 +165,41 @@ export default function MyPage() {
                         </View>
                         
                         <View style={[styles.frame, {gap:12}]}>
-                        <Text style={[styles.caption1, {color:"#FF59AD"}]}>지난 행사 굿즈 품절정보</Text>
-                            <View style={[styles.frame, {gap:4}]}>
-                                <Text style={styles.caption1}>저번 행사에서 ~관련된 상품이 가장 빨리 품절되었어요.{"\n"}
-                                N분만에 상품명이 품절되었어요.</Text>
-                            </View>
+                            <Text style={[styles.caption1, {color:"#FF59AD"}]}>지난 행사 굿즈 품절정보</Text>
+                            {eventData?.goods_stock_info && eventData.goods_stock_info.length > 0 ? (
+                                <View style={[styles.frame, {gap:12}]}>
+                                    {eventData.goods_stock_info.slice(0, 3).map((stock: any, idx: number) => {
+                                        // 해당 굿즈 인덱스의 이미지 가져오기
+                                        const uploadedImgs = eventData.uploaded_images || [];
+                                        const userImg = uploadedImgs[idx] || null;
+
+                                        return (
+                                            <View key={idx} style={styles.stockInfoItem}>
+                                                {/* 이미지 */}
+                                                {userImg && (
+                                                    <Image source={{ uri: userImg }} style={styles.stockImage} resizeMode="cover" />
+                                                )}
+                                                
+                                                {/* 텍스트 정보 */}
+                                                <View style={styles.stockTextContainer}>
+                                                    <Text style={styles.caption1}>{stock.goods_name}</Text>
+                                                    <Text style={styles.caption2}>
+                                                        {stock.sold_out_minutes}분 만에 품절
+                                                    </Text>
+                                                </View>
+                                            </View>
+                                        );
+                                    })}
+                                </View>
+                            ) : isLoadingStockInfo ? (
+                                <View style={[styles.frame, {gap:4}]}>
+                                    <Text style={styles.caption1}>정보를 불러오는 중입니다...</Text>
+                                </View>
+                            ) : (
+                                <View style={[styles.frame, {gap:4}]}>
+                                    <Text style={styles.caption1}>품절 정보를 찾을 수 없습니다.</Text>
+                                </View>
+                            )}
                         </View>
 
                         <View style={[styles.frame, {gap:20}]}>
@@ -117,22 +209,43 @@ export default function MyPage() {
                             </View>
 
                             <View style={[styles.goodsList]}>
-                            {sortedGoodsByCount.map((item, index) => (
-                                <View key={item.id} style={styles.goods}>
-                                    <View style={styles.numberCircle}>
-                                        <Text style={[styles.caption1, { color: "white" }]}>{index + 1}</Text>
-                                    </View>
+                                {eventData?.goods_popularity_rank && eventData.goods_popularity_rank.length > 0 ? (
+                                    // 컨텍스트의 popularity_rank 데이터 사용 (이미 정렬됨)
+                                    eventData.goods_popularity_rank.slice(0, 3).map((rank: any, index: number) => (
+                                        <View key={index} style={styles.goods}>
+                                            <View style={styles.numberCircle}>
+                                                <Text style={[styles.caption1, { color: "white" }]}>{rank.rank}</Text>
+                                            </View>
 
-                                    <Image source={require("../../assets/logo.png")} style={styles.image} resizeMode="contain" />
+                                            <Image source={require("../../assets/logo.png")} style={styles.image} resizeMode="contain" />
 
-                                    <View style={styles.goodsText}>
-                                        <Text style={styles.caption1}>{item.name}</Text>
-                                        <Text style={styles.caption2}>검색 결과 {" "}
-                                            <Text style={{ color: '#FF59AD', fontWeight: 'bold' }}>{item.searchCount.toLocaleString()}</Text>
-                                        개</Text>
-                                    </View>
-                                </View>
-                            ))}
+                                            <View style={styles.goodsText}>
+                                                <Text style={styles.caption1}>{rank.goods_name}</Text>
+                                                <Text style={styles.caption2}>검색 결과 {" "}
+                                                    <Text style={{ color: '#FF59AD', fontWeight: 'bold' }}>{rank.search_count.toLocaleString()}</Text>
+                                                개</Text>
+                                            </View>
+                                        </View>
+                                    ))
+                                ) : (
+                                    // 폴백: derivedGoods를 searchCount로 정렬하여 상위 3개만 표시
+                                    [...derivedGoods].sort((a, b) => b.searchCount - a.searchCount).slice(0, 3).map((item: any, index: number) => (
+                                        <View key={item.id} style={styles.goods}>
+                                            <View style={styles.numberCircle}>
+                                                <Text style={[styles.caption1, { color: "white" }]}>{index + 1}</Text>
+                                            </View>
+
+                                            <Image source={require("../../assets/logo.png")} style={styles.image} resizeMode="contain" />
+
+                                            <View style={styles.goodsText}>
+                                                <Text style={styles.caption1}>{item.name}</Text>
+                                                <Text style={styles.caption2}>검색 결과 {" "}
+                                                    <Text style={{ color: '#FF59AD', fontWeight: 'bold' }}>{item.searchCount.toLocaleString()}</Text>
+                                                개 (약 {item.searchApproxK}k)</Text>
+                                            </View>
+                                        </View>
+                                    ))
+                                )}
                             </View>
                         </View>
                     </View>
@@ -197,4 +310,7 @@ const styles = StyleSheet.create({
     head2: { fontSize: 20, fontWeight: "bold" },
     caption1: { fontSize: 14, color: "black", fontWeight: "600" },
     caption2: { fontSize: 12, color: "black", fontWeight: "600" },
+    stockInfoItem: { flexDirection: 'row', alignItems: 'center', gap: 12, width: '100%', backgroundColor: '#F9F9F9', borderRadius: 12, padding: 12 },
+    stockImage: { width: 60, height: 60, borderRadius: 8 },
+    stockTextContainer: { flex: 1, gap: 4 },
 });

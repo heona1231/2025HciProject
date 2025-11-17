@@ -430,6 +430,7 @@ const HomeDetailView: React.FC<HomeDetailViewProps> = ({ data: currentData, imag
                             <Ionicons name="chevron-forward" size={16} color="#FF59AD" />
                             <Text style={styles.addToCartLink}>보러가기</Text>
                         </TouchableOpacity>
+
                     </View>
                 )}
             </>
