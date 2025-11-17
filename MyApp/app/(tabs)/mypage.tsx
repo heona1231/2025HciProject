@@ -1,5 +1,5 @@
 // app/(tabs)/mypage.tsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { StyleSheet, View, Text, Image, ScrollView, TouchableOpacity, Alert } from "react-native";
 import { Picker } from "@react-native-picker/picker";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -10,75 +10,90 @@ import { useEventContext } from '../context/EventContext';
 // 💡 MyPage 컴포넌트 시작
 // =========================================================
 export default function MyPage() {
-    // --- EventContext에서 현재 이벤트 데이터 가져오기 ---
-    const { eventData, imageAnalysisData } = useEventContext();
-    // 초기값: 로딩 중 (eventData가 있을 때까지)
-    const [isLoadingStockInfo, setIsLoadingStockInfo] = useState(eventData ? true : false);
+// <<<<<<< mypage2
+//     // --- EventContext에서 현재 이벤트 데이터 가져오기 ---
+//     const { eventData, imageAnalysisData } = useEventContext();
+//     // 초기값: 로딩 중 (eventData가 있을 때까지)
+//     const [isLoadingStockInfo, setIsLoadingStockInfo] = useState(eventData ? true : false);
     
-    // eventData 변경 시: goods_stock_info가 로드되면 로딩 해제
-    React.useEffect(() => {
-        if (eventData?.goods_stock_info && eventData.goods_stock_info.length > 0) {
-            setIsLoadingStockInfo(false);
-        }
-    }, [eventData?.goods_stock_info]);
+//     // eventData 변경 시: goods_stock_info가 로드되면 로딩 해제
+//     React.useEffect(() => {
+//         if (eventData?.goods_stock_info && eventData.goods_stock_info.length > 0) {
+//             setIsLoadingStockInfo(false);
+//         }
+//     }, [eventData?.goods_stock_info]);
 
-    // --- 1. MyPage 기존 데이터 및 로직 (굿즈 목록) ---
-    // 컨텍스트에서 굿즈 데이터를 가져오고, 없으면 기본 목 데이터 사용
-    const defaultGoods = [
-        { id: 1, name: '아크릴 키링', price: 8000, image: 'https://via.placeholder.com/100', keyword: '춘식이/아크릴', searchCount: 52000 },
-        { id: 2, name: '포토카드 세트', price: 12000, image: 'https://via.placeholder.com/100', keyword: '라이언/지류', searchCount: 15000 },
-        { id: 3, name: '스터커 팩', price: 5000, image: 'https://via.placeholder.com/100', keyword: '어피치/지류', searchCount: 8500 },
-    ];
+//     // --- 1. MyPage 기존 데이터 및 로직 (굿즈 목록) ---
+//     // 컨텍스트에서 굿즈 데이터를 가져오고, 없으면 기본 목 데이터 사용
+//     const defaultGoods = [
+//         { id: 1, name: '아크릴 키링', price: 8000, image: 'https://via.placeholder.com/100', keyword: '춘식이/아크릴', searchCount: 52000 },
+//         { id: 2, name: '포토카드 세트', price: 12000, image: 'https://via.placeholder.com/100', keyword: '라이언/지류', searchCount: 15000 },
+//         { id: 3, name: '스터커 팩', price: 5000, image: 'https://via.placeholder.com/100', keyword: '어피치/지류', searchCount: 8500 },
+//     ];
 
-    // goods_popularity_rank가 있으면 우선 사용 (검색량 순위 기반)
-    let goods = defaultGoods;
-    if (eventData?.goods_popularity_rank && eventData.goods_popularity_rank.length > 0) {
-        goods = eventData.goods_popularity_rank.map((rank) => ({
-            id: rank.rank,
-            name: rank.goods_name,
-            price: 0,
-            image: 'https://via.placeholder.com/100',
-            keyword: rank.goods_name,
-            searchCount: rank.search_count || 0
-        }));
-    } else if (eventData?.goods_list && eventData.goods_list.length > 0) {
-        // goods_popularity_rank가 없으면 goods_list 사용
-        goods = eventData.goods_list.slice(0, 3).map((g, idx) => ({
-            id: idx + 1,
-            name: g.goods_name,
-            price: parseInt(String(g.price || '').replace(/[^0-9]/g, '')) || 0,
-            image: 'https://via.placeholder.com/100',
-            keyword: g.goods_name,
-            searchCount: 0
-        }));
-    }
+//     // goods_popularity_rank가 있으면 우선 사용 (검색량 순위 기반)
+//     let goods = defaultGoods;
+//     if (eventData?.goods_popularity_rank && eventData.goods_popularity_rank.length > 0) {
+//         goods = eventData.goods_popularity_rank.map((rank) => ({
+//             id: rank.rank,
+//             name: rank.goods_name,
+//             price: 0,
+//             image: 'https://via.placeholder.com/100',
+//             keyword: rank.goods_name,
+//             searchCount: rank.search_count || 0
+//         }));
+//     } else if (eventData?.goods_list && eventData.goods_list.length > 0) {
+//         // goods_popularity_rank가 없으면 goods_list 사용
+//         goods = eventData.goods_list.slice(0, 3).map((g, idx) => ({
+//             id: idx + 1,
+//             name: g.goods_name,
+//             price: parseInt(String(g.price || '').replace(/[^0-9]/g, '')) || 0,
+//             image: 'https://via.placeholder.com/100',
+//             keyword: g.goods_name,
+//             searchCount: 0
+//         }));
+//     }
 
-    // --- 추가: 검색량/인기도 추정 (A: 검색량 지표, B: 소셜/이미지 기반 신호 혼합) ---
-    // imageAnalysisData.uploaded_images 또는 eventData.uploaded_images를 소셜/관심 신호로 사용
-    const uploadedCount = (imageAnalysisData?.uploaded_images?.length || eventData?.uploaded_images?.length || 0);
+//     // --- 추가: 검색량/인기도 추정 (A: 검색량 지표, B: 소셜/이미지 기반 신호 혼합) ---
+//     // imageAnalysisData.uploaded_images 또는 eventData.uploaded_images를 소셜/관심 신호로 사용
+//     const uploadedCount = (imageAnalysisData?.uploaded_images?.length || eventData?.uploaded_images?.length || 0);
 
-    // derivedGoods: 화면에 사용할 최대 3개의 굿즈에 대해 blended searchCount 및 popularityScore 추가
-    const derivedGoods = goods.slice(0, 3).map((item, idx) => {
-        // A: 트렌드/검색량 (있다면 사용)
-        const trendCount = (item.searchCount && typeof item.searchCount === 'number') ? item.searchCount : 0;
+//     // derivedGoods: 화면에 사용할 최대 3개의 굿즈에 대해 blended searchCount 및 popularityScore 추가
+//     const derivedGoods = goods.slice(0, 3).map((item, idx) => {
+//         // A: 트렌드/검색량 (있다면 사용)
+//         const trendCount = (item.searchCount && typeof item.searchCount === 'number') ? item.searchCount : 0;
 
-        // B: 소셜/이미지 신호 (업로드된 이미지 수에 비례하는 단순한 proxy)
-        const socialSignal = uploadedCount * 500; // 1 image -> 500 검색량 가중치 (휴리스틱)
+//         // B: 소셜/이미지 신호 (업로드된 이미지 수에 비례하는 단순한 proxy)
+//         const socialSignal = uploadedCount * 500; // 1 image -> 500 검색량 가중치 (휴리스틱)
 
-        // 가중 혼합 (70% 트렌드, 30% 소셜)
-        const blended = Math.round(trendCount * 0.7 + socialSignal * 0.3);
+//         // 가중 혼합 (70% 트렌드, 30% 소셜)
+//         const blended = Math.round(trendCount * 0.7 + socialSignal * 0.3);
 
-        // 인간 친화적 표기: '약 N천 건' -> k 단위 (rounded)
-        const approxK = Math.max(0, Math.round(blended / 1000));
+//         // 인간 친화적 표기: '약 N천 건' -> k 단위 (rounded)
+//         const approxK = Math.max(0, Math.round(blended / 1000));
 
-        return {
-            ...item,
-            searchCount: blended,
-            searchApproxK: approxK,
-        };
-    });
+//         return {
+//             ...item,
+//             searchCount: blended,
+//             searchApproxK: approxK,
+//         };
+//     });
 
-    const [priorities, setPriorities] = useState(["1", "2", "3"]);
+//     const [priorities, setPriorities] = useState(["1", "2", "3"]);
+// =======
+    // --- 1. EventContext에서 굿즈 목록 가져오기 ---
+    const { myGoods } = useEventContext();
+    const goods = myGoods;
+    
+    const [priorities, setPriorities] = useState<string[]>(
+        goods.map((_, index) => String((index % 3) + 1))
+    );
+
+    // 💡 굿즈 목록이 변경될 때마다 priorities 업데이트
+    useEffect(() => {
+        setPriorities(goods.map((_, index) => String((index % 3) + 1)));
+    }, [goods.length]);
+
     const updatePriority = (index: number, newValue: string) => {
         const oldValue = priorities[index];
         if (oldValue === newValue) { return; }
@@ -113,7 +128,7 @@ export default function MyPage() {
                             <View key={item.id} style={styles.goods}>
                                 <View style={styles.numberCircle}><Text style={[styles.caption1, {color:"white"}]}>{index + 1}</Text></View>
                                 
-                                <Image source={require("../../assets/logo.png")} style={styles.image} resizeMode="contain"/>
+                                <Image source={typeof item.image === 'string' && (item.image.startsWith('http') || item.image.startsWith('file') || item.image.startsWith('data')) ? { uri: item.image } : require("../../assets/logo.png")} style={styles.image} resizeMode="contain"/>
                                 
                                 <View style={styles.goodsText}>
                                     <Text style={styles.caption1}>{item.name}</Text>
@@ -154,8 +169,8 @@ export default function MyPage() {
                                     </View>
 
                                     <View style={styles.circularImageContainer}>
-                                        <Image 
-                                            source={require("../../assets/logo.png")}
+                                            <Image 
+                                                source={typeof item.image === 'string' && (item.image.startsWith('http') || item.image.startsWith('file') || item.image.startsWith('data')) ? { uri: item.image } : require("../../assets/logo.png")}
                                             style={styles.circularImage} 
                                             resizeMode="contain"/>
                                     </View>
@@ -217,7 +232,8 @@ export default function MyPage() {
                                                 <Text style={[styles.caption1, { color: "white" }]}>{rank.rank}</Text>
                                             </View>
 
-                                            <Image source={require("../../assets/logo.png")} style={styles.image} resizeMode="contain" />
+
+                                    <Image source={typeof item.image === 'string' && (item.image.startsWith('http') || item.image.startsWith('file') || item.image.startsWith('data')) ? { uri: item.image } : require("../../assets/logo.png")} style={styles.image} resizeMode="contain" />
 
                                             <View style={styles.goodsText}>
                                                 <Text style={styles.caption1}>{rank.goods_name}</Text>
