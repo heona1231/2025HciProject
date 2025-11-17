@@ -71,7 +71,7 @@ const HomeDetailView: React.FC<HomeDetailViewProps> = ({ data: currentData, imag
     const [activeTab, setActiveTab] = React.useState("행사예매/입장");
 
     // EventContext에서 addGoods 함수 가져오기
-    const { addGoods, myGoods } = useEventContext();
+    const { addGoods, myGoods, setGoodsStockoutInfo } = useEventContext();
 
     // 💡 1. 과거 행사 데이터 상태 및 로딩 상태 추가
     const [pastEvents, setPastEvents] = React.useState<PastEventsData | undefined>(
@@ -81,7 +81,40 @@ const HomeDetailView: React.FC<HomeDetailViewProps> = ({ data: currentData, imag
     
     // UI 유지를 위한 더미 이벤트 목록 (드롭다운)
     const events = ["행사 1", "행사 2", "행사 3"]; // 임시 이벤트 목록
+    const extractStockoutInfo = (pastEventsData: PastEventsData): string => {
+    const feedback = pastEventsData?.feedback;
+    
+    if (!feedback || !feedback.goods || feedback.goods.length === 0) {
+        return "이전 행사 품절 정보가 없습니다.";
+    }
 
+    const stockoutSentences: string[] = [];
+
+    feedback.goods.forEach((item: any) => {
+        if (!item.description) return;
+
+        // "품절:" 부분만 추출
+        const descParts = item.description.split(';');
+        for (const part of descParts) {
+            const trimmed = part.trim();
+            if (trimmed.startsWith('품절:')) {
+                // "품절:" 이후의 내용만 가져오기
+                const stockoutContent = trimmed.replace('품절:', '').trim();
+                if (stockoutContent) {
+                    stockoutSentences.push(`🚨 ${item.title}: ${stockoutContent}`);
+                }
+                break; // 한 굿즈당 하나의 품절 정보만
+            }
+        }
+    });
+
+    if (stockoutSentences.length === 0) {
+        return "이전 행사에서 품절된 굿즈가 없었습니다.";
+    }
+
+    // 최대 2개만 반환
+    return stockoutSentences.slice(0, 2).join('\n\n');
+};
     // 💡 굿즈를 MyPage 목록에 추가하는 함수
     const handleAddToMyGoods = (goods: GoodsItem, imageSource?: any) => {
         if (myGoods.length >= 3) {
@@ -111,6 +144,11 @@ const HomeDetailView: React.FC<HomeDetailViewProps> = ({ data: currentData, imag
             searchCount: 0,
         };
         addGoods(newGood);
+        if (pastEvents) {
+        const stockoutInfo = extractStockoutInfo(pastEvents);
+        setGoodsStockoutInfo(stockoutInfo);
+        console.log('✅ 품절 정보 Context에 저장:', stockoutInfo);
+        }
         Alert.alert("성공", `${goods.goods_name}을(를) 구매목록에 추가했습니다! (${myGoods.length + 1}/3)`);
     };
 

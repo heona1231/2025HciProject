@@ -18,6 +18,12 @@ type EventContextType = {
   myGoods: GoodsItem[];
   addGoods: (goods: GoodsItem) => void;
   removeGoods: (id: number) => void;
+  // 🔥 품절 정보 추가
+  goodsStockoutInfo: string;
+  setGoodsStockoutInfo: (info: string) => void;
+  // 🔥 행사 제목 추가 (품절 정보 조회에 필요)
+  eventTitle: string;
+  setEventTitle: (title: string) => void;
 };
 
 const EventContext = createContext<EventContextType | undefined>(undefined);
@@ -26,6 +32,8 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [eventData, setEventData] = useState<EventData | null>(null);
   const [imageAnalysisData, setImageAnalysisData] = useState<any | null>(null);
   const [myGoods, setMyGoods] = useState<GoodsItem[]>([]);
+  const [goodsStockoutInfo, setGoodsStockoutInfo] = useState<string>("");
+  const [eventTitle, setEventTitle] = useState<string>("");
 
   const addGoods = (goods: GoodsItem) => {
     setMyGoods((prev) => {
@@ -41,7 +49,21 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   return (
-    <EventContext.Provider value={{ eventData, setEventData, imageAnalysisData, setImageAnalysisData, myGoods, addGoods, removeGoods }}>
+    <EventContext.Provider 
+      value={{ 
+        eventData, 
+        setEventData, 
+        imageAnalysisData, 
+        setImageAnalysisData, 
+        myGoods, 
+        addGoods, 
+        removeGoods,
+        goodsStockoutInfo,
+        setGoodsStockoutInfo,
+        eventTitle,
+        setEventTitle
+      }}
+    >
       {children}
     </EventContext.Provider>
   );
