@@ -56,12 +56,14 @@ import { ViewState, EventData, GoodsItem } from "../data/types";
 interface HomeDetailViewProps {
     /** 상위 컴포넌트(home.tsx)에서 전달받은 AI 분석 결과 데이터 */
     data: EventData;
+    /** 이미지에서 받아온 원본 분석 데이터 (옵션) */
+    imageData?: any;
     /** 'DEFAULT' 뷰로 돌아가기 위해 상위 컴포넌트의 navigate 함수를 받음 */
     onBack: (view: ViewState) => void;
 }
 
 
-const HomeDetailView: React.FC<HomeDetailViewProps> = ({ data: currentData, onBack }) => {
+const HomeDetailView: React.FC<HomeDetailViewProps> = ({ data: currentData, imageData, onBack }) => {
     
     const [open, setOpen] = React.useState(false); // 드롭다운 상태
     const [activeTab, setActiveTab] = React.useState("행사예매/입장");
@@ -289,22 +291,127 @@ const HomeDetailView: React.FC<HomeDetailViewProps> = ({ data: currentData, onBa
                         <Text style={styles.sectionDescription}>행사에 참여했을 때 기본으로 제공되는 특전 정보에요.</Text>
                         <View style={styles.tabContentSeparator} />
 
-                        {/* 특전 상품명 (조건) 형식으로 표시 */}
-                        {/* BenefitItem 타입은 외부 types에 정의되어 있어야 함 */}
-                        {currentData.event_benefits?.map((benefit: any, idx: number) => ( // 'any' 대신 BenefitItem 사용 권장
-                            <View key={idx} style={styles.benefitItem}>
-                                <View style={styles.itemNumber}>
-                                    <Text style={styles.itemNumberText}>{idx + 1}</Text>
+                        {/* 서버에서 전달된 event_benefits를 그대로 표시합니다.
+                            - 문자열이면 그대로 출력
+                            - 객체이면 JSON 형태로 간단히 보여줍니다 */}
+                        {currentData.event_benefits?.map((benefit: any, idx: number) => {
+                            const display = (typeof benefit === 'string')
+                                ? benefit
+                                : (typeof benefit === 'object' && benefit !== null)
+                                    ? JSON.stringify(benefit)
+                                    : String(benefit);
+
+                            return (
+                                <View key={idx} style={styles.benefitItem}>
+                                    <View style={styles.itemNumber}>
+                                        <Text style={styles.itemNumberText}>{idx + 1}</Text>
+                                    </View>
+                                    <Image source={getLocalImage("goods1.png")} style={styles.goodsImage} />
+                                    <Text style={styles.benefitText}>{display}</Text>
                                 </View>
-                                {/* 특전 상품 이미지 (임시) */}
-                                <Image source={getLocalImage("goods1.png")} style={styles.goodsImage} />
-                                <Text style={styles.benefitText}>
-                                    **{benefit.benefit_name}** ({benefit.condition})
-                                </Text>
+                            );
+                        })}
+
+                        {/* 이미지에서 받아온 원본 JSON 정보(가능한 경우) */}
+                        {imageData && (
+                            <View style={{ marginTop: 12 }}>
+                                <Text style={{ fontSize: 14, fontWeight: '700', marginBottom: 6 }}>이미지 원본 (분석 결과)</Text>
+                                <Text style={{ fontSize: 12, color: '#666', marginBottom: 6 }}>이미지 분석에서 반환된 원본 JSON을 그대로 표시합니다.</Text>
+
+                                {/* 굿즈 리스트(원본) */}
+                                {imageData?.goods?.goods_list && Array.isArray(imageData.goods.goods_list) && (
+                                    <View style={{ marginBottom: 8 }}>
+                                        <Text style={{ fontSize: 13, fontWeight: '600' }}>굿즈(이미지 원본)</Text>
+                                        {imageData.goods.goods_list.map((g: any, i: number) => (
+                                            <Text key={`img-g-${i}`} style={{ fontSize: 12, color: '#333', marginLeft: 8 }}>
+                                                • {JSON.stringify(g)}
+                                            </Text>
+                                        ))}
+                                    </View>
+                                )}
+
+                                {/* 이벤트 특전(원본) */}
+                                {imageData?.goods?.event_benefits && Array.isArray(imageData.goods.event_benefits) && (
+                                    <View style={{ marginBottom: 8 }}>
+                                        <Text style={{ fontSize: 13, fontWeight: '600' }}>특전(이미지 원본)</Text>
+                                        {imageData.goods.event_benefits.map((b: any, i: number) => (
+                                            <Text key={`img-b-${i}`} style={{ fontSize: 12, color: '#333', marginLeft: 8 }}>
+                                                • {typeof b === 'string' ? b : JSON.stringify(b)}
+                                            </Text>
+                                        ))}
+                                    </View>
+                                )}
+
+                                {/* 업로드된 이미지 데이터 URI 목록 (원본) */}
+                                {imageData?.uploaded_images && Array.isArray(imageData.uploaded_images) && (
+                                    <View>
+                                        <Text style={{ fontSize: 13, fontWeight: '600' }}>업로드된 이미지(원본)</Text>
+                                        {imageData.uploaded_images.map((u: string, i: number) => (
+                                            <Text key={`img-u-${i}`} style={{ fontSize: 11, color: '#666', marginLeft: 8 }} numberOfLines={1} ellipsizeMode="middle">
+                                                • {u}
+                                            </Text>
+                                        ))}
+                                    </View>
+                                )}
                             </View>
-                        ))}
+                        )}
                     </View>
                 )}
+
+                {/* 판매 굿즈 섹션: 행사 특전 아래에 표시 (for_sale 플래그가 있는 굿즈만) */}
+                {hasGoods && (() => {
+                    const goodsList = currentData.goods_list || [];
+                    // 원래 인덱스를 보존해서 uploaded_images와 매칭 가능하게 함
+                    // 판매 플래그가 명시된 경우에는 그 항목만, 없으면 모든 굿즈를 표시합니다.
+                    const anyHasSaleFlag = goodsList.some((g: any) => g && (g.for_sale === true || g.is_for_sale === true || g.sale === true || g.판매 === true));
+                    const saleGoodsWithIndex = goodsList
+                        .map((g: GoodsItem, i: number) => ({ goods: g, idx: i }))
+                        .filter(({ goods }) => {
+                            if (!anyHasSaleFlag) return true; // 판매 플래그가 없으면 모두 표시
+                            const any = (goods as any);
+                            return any.for_sale === true || any.is_for_sale === true || any.sale === true || any.판매 === true;
+                        });
+
+                    if (saleGoodsWithIndex.length === 0) return null;
+
+                    const uploadedImgs = (currentData as any).uploaded_images || [];
+
+                    return (
+                        <View style={styles.infoSection}>
+                            <Text style={styles.sectionTitle}>판매 굿즈</Text>
+                            <Text style={styles.sectionDescription}>서버에서 전달된 굿즈 정보를 그대로 보여줍니다.</Text>
+                            <View style={styles.tabContentSeparator} />
+
+                            {saleGoodsWithIndex.map(({ goods, idx }: { goods: GoodsItem; idx: number }) => {
+                                const maybeImagePath = (goods as any).image_path;
+                                const userImg = uploadedImgs[idx];
+                                const imageSource = maybeImagePath
+                                    ? (maybeImagePath.startsWith('data:') ? { uri: maybeImagePath } : getLocalImage(maybeImagePath))
+                                    : userImg
+                                        ? { uri: userImg }
+                                        : getLocalImage("default");
+
+                                return (
+                                    <View key={`sale-${idx}`} style={styles.goodsItem}>
+                                        <View style={styles.itemNumber}>
+                                            <Text style={styles.itemNumberText}>{idx + 1}</Text>
+                                        </View>
+                                        <Image source={imageSource} style={styles.goodsImage} />
+                                        <View style={styles.goodsInfo}>
+                                            <Text style={styles.goodsName}>{(goods as any).goods_name || (goods as any).굿즈명 || (goods as any).name || '굿즈'}</Text>
+                                            <Text style={styles.goodsPrice}>{(goods as any).price || (goods as any).가격 || '가격 미정'}</Text>
+                                            {/* 원본 데이터 표시(디버그용) */}
+                                            <Text style={{ fontSize: 11, color: '#777', marginTop: 6 }}>{JSON.stringify(goods)}</Text>
+                                        </View>
+                                        <TouchableOpacity onPress={() => Alert.alert('구매', `${(goods as any).goods_name || (goods as any).굿즈명 || '해당 굿즈'} 구매`)}>
+                                            <Text style={{ color: '#FF59AD', fontWeight: '700' }}>구매하기</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                );
+                            })}
+                        </View>
+                    );
+                })()}
 
                 {/* 정책 3: 굿즈 정보 */}
                 {hasGoods && (
@@ -313,26 +420,38 @@ const HomeDetailView: React.FC<HomeDetailViewProps> = ({ data: currentData, onBa
                         <Text style={styles.sectionDescription}>행사에서 판매하는 굿즈 정보에요.</Text>
                         <View style={styles.tabContentSeparator} />
 
-                        {currentData.goods_list?.map((goods: GoodsItem, idx: number) => (
-                            <View key={idx} style={styles.goodsItem}>
-                                <View style={styles.itemNumber}>
-                                    <Text style={styles.itemNumberText}>{idx + 1}</Text>
+                        {currentData.goods_list?.map((goods: GoodsItem, idx: number) => {
+                            // 우선순위: goods.image_path(서버 제공) -> 사용자가 업로드한 이미지(currentData.uploaded_images[idx]) -> 기본 이미지
+                            const maybeImagePath = (goods as any).image_path;
+                            const uploadedImgs = (currentData as any).uploaded_images || [];
+                            const userImg = uploadedImgs[idx];
+
+                            const imageSource = maybeImagePath
+                                ? getLocalImage(maybeImagePath)
+                                : userImg
+                                    ? { uri: userImg }
+                                    : getLocalImage("default");
+
+                            return (
+                                <View key={idx} style={styles.goodsItem}>
+                                    <View style={styles.itemNumber}>
+                                        <Text style={styles.itemNumberText}>{idx + 1}</Text>
+                                    </View>
+                                    {/* 정책 3: 굿즈 사진은 분석 부탁한 원본 사진을 그대로 사용 (없을 경우 대체 이미지) */}
+                                    <Image
+                                        source={imageSource}
+                                        style={styles.goodsImage}
+                                    />
+                                    <View style={styles.goodsInfo}>
+                                        {/* 정책 3: 굿즈명 (한글, 영어, 특수문자) */}
+                                        <Text style={styles.goodsName}>{goods.goods_name}</Text>
+                                        {/* 정책 3: 가격 (XXXXX원) */}
+                                        <Text style={styles.goodsPrice}>{goods.price}</Text>
+                                    </View>
+                                    <Ionicons name="add-circle-outline" size={24} color="#000" />
                                 </View>
-                                {/* 정책 3: 굿즈 사진은 분석 부탁한 원본 사진을 그대로 넣기 */}
-                                <Image
-                                    // image_path는 분석한 원본 사진 경로를 가정합니다.
-                                    source={getLocalImage(goods.image_path || "default")}
-                                    style={styles.goodsImage}
-                                />
-                                <View style={styles.goodsInfo}>
-                                    {/* 정책 3: 굿즈명 (한글, 영어, 특수문자) */}
-                                    <Text style={styles.goodsName}>{goods.goods_name}</Text>
-                                    {/* 정책 3: 가격 (XXXXX원) */}
-                                    <Text style={styles.goodsPrice}>{goods.price}</Text>
-                                </View>
-                                <Ionicons name="add-circle-outline" size={24} color="#000" />
-                            </View>
-                        ))}
+                            );
+                        })}
 
                         {/* 하단 담기 버튼 목업 */}
                         <TouchableOpacity style={styles.addToCartMock} onPress={() => Alert.alert("알림", "해당 굿즈를 담았습니다.")}>
@@ -346,7 +465,7 @@ const HomeDetailView: React.FC<HomeDetailViewProps> = ({ data: currentData, onBa
         );
     };
 
-    // 💡 4. '과거행사기록' 탭 렌더링 함수 (정책 4 반영)
+    // 💡 3. '과거행사기록' 탭 렌더링 함수 (정책 4 반영)
     const renderPastEventTab = () => {
         // 💡 로딩 상태 처리
         if (isLoadingPastEvents) {
@@ -357,9 +476,10 @@ const HomeDetailView: React.FC<HomeDetailViewProps> = ({ data: currentData, onBa
                 </View>
             );
         }
-        
-        // 💡 데이터 없음 상태 처리
-        if (!pastEvents || pastEvents.past_events_list.length === 0) {
+
+        // 안전 체크: pastEvents 및 내부 필드가 유효한지 확인
+        const hasPastList = Array.isArray(pastEvents?.past_events_list) && pastEvents.past_events_list.length > 0;
+        if (!pastEvents || !hasPastList) {
              return (
                  <View style={styles.infoSection}>
                     <Text style={styles.sectionDescription}>과거 유사 행사에 대한 정보를 찾을 수 없습니다.</Text>
@@ -368,7 +488,7 @@ const HomeDetailView: React.FC<HomeDetailViewProps> = ({ data: currentData, onBa
         }
 
         // pastEvents 상태에서 데이터를 가져와 사용
-        const pastEventsData = pastEvents;
+        const pastEventsData = pastEvents as PastEventsData;
         
         // 과거 행사 정보가 있지만, 내용이 부실할 경우 (옵션)
         // if (pastEventsData.past_events_list.length === 0 && pastEventsData.feedback.goods.length === 0) { ... }
@@ -398,7 +518,7 @@ const HomeDetailView: React.FC<HomeDetailViewProps> = ({ data: currentData, onBa
                 </View>
 
                 {/* 정책 4: 굿즈 구매 관련 피드백 (운영 방식 정보만 제공) */}
-                {pastEventsData.feedback.goods.length > 0 && (
+                {Array.isArray(pastEventsData.feedback?.goods) && pastEventsData.feedback.goods.length > 0 && (
                     <View style={styles.feedbackSection}>
                         <Text style={styles.feedbackSectionTitle}>굿즈 구매 관련</Text>
                         {pastEventsData.feedback.goods.map((item: FeedbackItem, index: number) => (
@@ -410,12 +530,12 @@ const HomeDetailView: React.FC<HomeDetailViewProps> = ({ data: currentData, onBa
                 )}
 
                 {/* 정책 4: 행사 콘텐츠/운영 관련 피드백 (긍정/부정 구분) */}
-                {(pastEventsData.feedback.contents.positive.length > 0 || pastEventsData.feedback.contents.negative.length > 0) && (
+                {((Array.isArray(pastEventsData.feedback?.contents?.positive) && pastEventsData.feedback.contents.positive.length > 0) || (Array.isArray(pastEventsData.feedback?.contents?.negative) && pastEventsData.feedback.contents.negative.length > 0)) && (
                     <View style={styles.feedbackSection}>
                         <Text style={styles.feedbackSectionTitlePink}>행사 전반 관련</Text>
 
                         {/* 긍정적 의견 */}
-                        {pastEventsData.feedback.contents.positive.length > 0 && (
+                        {Array.isArray(pastEventsData.feedback.contents.positive) && pastEventsData.feedback.contents.positive.length > 0 && (
                             <>
                                 <Text style={styles.sentimentTitlePositive}>긍정의견</Text>
                                 {pastEventsData.feedback.contents.positive.map((item: FeedbackItem, index: number) => (
@@ -427,7 +547,7 @@ const HomeDetailView: React.FC<HomeDetailViewProps> = ({ data: currentData, onBa
                         )}
 
                         {/* 부정적 의견 */}
-                        {pastEventsData.feedback.contents.negative.length > 0 && (
+                        {Array.isArray(pastEventsData.feedback.contents.negative) && pastEventsData.feedback.contents.negative.length > 0 && (
                             <>
                                 <Text style={styles.sentimentTitleNegative}>부정의견</Text>
                                 {pastEventsData.feedback.contents.negative.map((item: FeedbackItem, index: number) => (

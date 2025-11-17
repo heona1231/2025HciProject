@@ -54,6 +54,10 @@ export interface EventData {
     // 행사 특전 정보
     event_benefits: string[] | null;
 
+    // 이미지에서만 추출된 굿즈/특전 (원본 형태로 보존)
+    image_goods_list?: GoodsItem[] | null;
+    image_event_benefits?: string[] | null;
+
     // 굿즈 목록
     goods_list: GoodsItem[] | null;
 
