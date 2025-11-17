@@ -358,61 +358,7 @@ const HomeDetailView: React.FC<HomeDetailViewProps> = ({ data: currentData, imag
                     </View>
                 )}
 
-                {/* 판매 굿즈 섹션: 행사 특전 아래에 표시 (for_sale 플래그가 있는 굿즈만) */}
-                {hasGoods && (() => {
-                    const goodsList = currentData.goods_list || [];
-                    // 원래 인덱스를 보존해서 uploaded_images와 매칭 가능하게 함
-                    // 판매 플래그가 명시된 경우에는 그 항목만, 없으면 모든 굿즈를 표시합니다.
-                    const anyHasSaleFlag = goodsList.some((g: any) => g && (g.for_sale === true || g.is_for_sale === true || g.sale === true || g.판매 === true));
-                    const saleGoodsWithIndex = goodsList
-                        .map((g: GoodsItem, i: number) => ({ goods: g, idx: i }))
-                        .filter(({ goods }) => {
-                            if (!anyHasSaleFlag) return true; // 판매 플래그가 없으면 모두 표시
-                            const any = (goods as any);
-                            return any.for_sale === true || any.is_for_sale === true || any.sale === true || any.판매 === true;
-                        });
-
-                    if (saleGoodsWithIndex.length === 0) return null;
-
-                    const uploadedImgs = (currentData as any).uploaded_images || [];
-
-                    return (
-                        <View style={styles.infoSection}>
-                            <Text style={styles.sectionTitle}>판매 굿즈</Text>
-                            <Text style={styles.sectionDescription}>서버에서 전달된 굿즈 정보를 그대로 보여줍니다.</Text>
-                            <View style={styles.tabContentSeparator} />
-
-                            {saleGoodsWithIndex.map(({ goods, idx }: { goods: GoodsItem; idx: number }) => {
-                                const maybeImagePath = (goods as any).image_path;
-                                const userImg = uploadedImgs[idx];
-                                const imageSource = maybeImagePath
-                                    ? (maybeImagePath.startsWith('data:') ? { uri: maybeImagePath } : getLocalImage(maybeImagePath))
-                                    : userImg
-                                        ? { uri: userImg }
-                                        : getLocalImage("default");
-
-                                return (
-                                    <View key={`sale-${idx}`} style={styles.goodsItem}>
-                                        <View style={styles.itemNumber}>
-                                            <Text style={styles.itemNumberText}>{idx + 1}</Text>
-                                        </View>
-                                        <Image source={imageSource} style={styles.goodsImage} />
-                                        <View style={styles.goodsInfo}>
-                                            <Text style={styles.goodsName}>{(goods as any).goods_name || (goods as any).굿즈명 || (goods as any).name || '굿즈'}</Text>
-                                            <Text style={styles.goodsPrice}>{(goods as any).price || (goods as any).가격 || '가격 미정'}</Text>
-                                            {/* 원본 데이터 표시(디버그용) */}
-                                            <Text style={{ fontSize: 11, color: '#777', marginTop: 6 }}>{JSON.stringify(goods)}</Text>
-                                        </View>
-                                        <TouchableOpacity onPress={() => Alert.alert('구매', `${(goods as any).goods_name || (goods as any).굿즈명 || '해당 굿즈'} 구매`)}>
-                                            <Text style={{ color: '#FF59AD', fontWeight: '700' }}>구매하기</Text>
-                                        </TouchableOpacity>
-                                    </View>
-                                );
-                            })}
-                        </View>
-                    );
-                })()}
-
+              
                 {/* 정책 3: 굿즈 정보 */}
                 {hasGoods && (
                     <View style={styles.infoSection}>
@@ -421,10 +367,16 @@ const HomeDetailView: React.FC<HomeDetailViewProps> = ({ data: currentData, imag
                         <View style={styles.tabContentSeparator} />
 
                         {currentData.goods_list?.map((goods: GoodsItem, idx: number) => {
-                            // 우선순위: goods.image_path(서버 제공) -> 사용자가 업로드한 이미지(currentData.uploaded_images[idx]) -> 기본 이미지
+                            // AI가 반환한 image_index를 사용합니다.
+                            const imageIndexFromAI = (goods as any).image_index; 
+                            
                             const maybeImagePath = (goods as any).image_path;
                             const uploadedImgs = (currentData as any).uploaded_images || [];
-                            const userImg = uploadedImgs[idx];
+                            
+                            // 💡 굿즈 목록 순서(idx) 대신 AI 인덱스를 사용하여 이미지 배열에서 가져옵니다. (원본 URI)
+                            const userImg = (imageIndexFromAI !== undefined && imageIndexFromAI >= 0 && imageIndexFromAI < uploadedImgs.length)
+                                ? uploadedImgs[imageIndexFromAI]
+                                : null; // 유효하지 않은 인덱스면 null 처리
 
                             const imageSource = maybeImagePath
                                 ? getLocalImage(maybeImagePath)
@@ -437,11 +389,29 @@ const HomeDetailView: React.FC<HomeDetailViewProps> = ({ data: currentData, imag
                                     <View style={styles.itemNumber}>
                                         <Text style={styles.itemNumberText}>{idx + 1}</Text>
                                     </View>
-                                    {/* 정책 3: 굿즈 사진은 분석 부탁한 원본 사진을 그대로 사용 (없을 경우 대체 이미지) */}
-                                    <Image
-                                        source={imageSource}
-                                        style={styles.goodsImage}
-                                    />
+                                    
+                                    {/* 💡 수정: Image를 TouchableOpacity로 감싸서 onPress 이벤트 추가 */}
+                                    <TouchableOpacity
+                                        // userImg가 존재할 때만 활성화 (원본 파일 URI가 있을 때만 눌러서 확대)
+                                        onPress={() => {
+                                            if (userImg) {
+                                                // ⚠️ 주석: 이 부분에 원본 이미지를 보여주는 모달 또는 뷰어 함수를 호출하세요.
+                                                // 예: handleImageZoom(userImg);
+                                                console.log("원본 이미지 확대 요청:", userImg.slice(0, 50));
+                                                Alert.alert("원본 이미지 확인", "이미지 확대 로직을 구현해야 합니다.\nURI: " + userImg.slice(0, 50));
+                                            } else {
+                                                Alert.alert("정보 없음", "사용자가 업로드한 원본 이미지 파일이 없습니다.");
+                                            }
+                                        }}
+                                        disabled={!userImg} // 원본 이미지가 없으면 비활성화
+                                    >
+                                        {/* 정책 3: 굿즈 사진은 분석 부탁한 원본 사진을 그대로 사용 (없을 경우 대체 이미지) */}
+                                        <Image
+                                            source={imageSource}
+                                            style={styles.goodsImage}
+                                        />
+                                    </TouchableOpacity>
+
                                     <View style={styles.goodsInfo}>
                                         {/* 정책 3: 굿즈명 (한글, 영어, 특수문자) */}
                                         <Text style={styles.goodsName}>{goods.goods_name}</Text>

@@ -5,6 +5,7 @@ import puppeteer from "puppeteer";
 import { createWorker } from 'tesseract.js';
 import multer from "multer";
 import fs from "fs";
+import { type } from "os";
 
 const app = express();
 app.use(cors());
@@ -47,7 +48,8 @@ const GOODS_SCHEMA = {
                 type: "OBJECT",
                 properties: {
                     goods_name: { type: "STRING" },
-                    price: { type: "STRING" }
+                    price: { type: "STRING" },
+                    image_index: { type: "INTEGER" }
                 }
             }
         },
@@ -372,33 +374,31 @@ function extractJsonFromText(text) {
 
     return null;
 }
+// OCR 단계 스킵
+const ocrText = "";
 
 // OCR: base64 이미지에서 텍스트 추출 (tesseract.js)
-async function extractTextFromBase64(base64Data) {
-    try {
-        const worker = await createWorker({
-            logger: m => console.log('TESSERACT:', m)
-        });
-        await worker.load();
-        // 기본적으로 한/영 같이 쓰이는 경우가 많으므로 kor+eng 초기화 시도
-        try {
-            await worker.loadLanguage('kor+eng');
-            await worker.initialize('kor+eng');
-        } catch (langErr) {
-            // 언어 설치가 안 되어 있으면 영어만 사용
-            await worker.loadLanguage('eng');
-            await worker.initialize('eng');
-        }
+// async function extractTextFromBase64(base64Data) {
+//     try {
+//         const worker = await createWorker(); // logger 제거
+//         await worker.load();
+//         try {
+//             await worker.loadLanguage('kor+eng');
+//             await worker.initialize('kor+eng');
+//         } catch {
+//             await worker.loadLanguage('eng');
+//             await worker.initialize('eng');
+//         }
 
-        const buffer = Buffer.from(base64Data, 'base64');
-        const { data: { text } } = await worker.recognize(buffer);
-        await worker.terminate();
-        return text;
-    } catch (err) {
-        console.error('OCR 오류:', err.message || err);
-        return '';
-    }
-}
+//         const buffer = Buffer.from(base64Data, 'base64');
+//         const { data: { text } } = await worker.recognize(buffer);
+//         await worker.terminate();
+//         return text;
+//     } catch (err) {
+//         console.error('OCR 오류:', err.message || err);
+//         return '';
+//     }
+// }
 
 // 간단한 OCR 텍스트 기반 굿즈/특전 파서 (휴리스틱)
 function parseGoodsAndBenefitsFromOCR(ocrText) {
@@ -933,7 +933,7 @@ app.post("/analyze-image", async (req, res) => {
 // POST /analyze-image-upload - 이미지 파일 업로드 처리 (multipart/form-data)
 // 클라이언트에서 파일 필드 이름을 `images`로 전송해야 합니다.
 // ---------------------------------------------------------
-app.post('/analyze-image-upload', upload.array('images'), async (req, res) => {
+    app.post('/analyze-image-upload', upload.array('images'), async (req, res) => {
     try {
         console.log('📥 파일 업로드 이미지 분석 요청 받음!');
         console.log('📋 요청 헤더:', {
@@ -943,19 +943,19 @@ app.post('/analyze-image-upload', upload.array('images'), async (req, res) => {
         console.log('📦 req.body:', req.body);
         console.log('📂 req.files:', req.files ? `${req.files.length}개 파일` : '없음');
         console.log('🔍 req.file:', req.file ? '단일 파일 존재' : '없음');
-
+        
         const files = req.files;
-
+        
         if (!files || !Array.isArray(files) || files.length === 0) {
             console.error('❌ 파일 없음');
             return res.status(400).json({ success: false, error: '최소 1개 이상의 이미지 파일이 필요합니다.' });
         }
-
+        
         console.log(`📸 받은 파일 개수: ${files.length}`);
         files.forEach((file, idx) => {
             console.log(`   파일 ${idx + 1}: ${file.originalname} (${file.mimetype}, ${file.buffer.length} bytes)`);
         });
-
+        
         // 파일들을 Gemini API 형식으로 변환
         console.log('🔄 Base64 변환 시작...');
         const imageParts = files.map((file, idx) => {
@@ -969,39 +969,60 @@ app.post('/analyze-image-upload', upload.array('images'), async (req, res) => {
                 }
             };
         });
-        console.log('✅ Base64 변환 완료');
-
         // 원본 이미지를 프론트용으로 data URI 형태로 보관
         const uploadedBase64Uris = files.map((file) => `data:${file.mimetype || 'image/jpeg'};base64,${file.buffer.toString('base64')}`);
 
         // AI 프롬프트 (이미지 분석 목적)
-        const imagePrompt = `다음 이미지는 행사 관련 안내 이미지입니다.
-이미지에서 '굿즈 목록'과 '행사 특전' 정보를 추출하세요.
+        // AI 프롬프트 작성
+let imagePrompt = `다음 이미지는 행사 관련 안내 이미지입니다.
+이미지 속에서 '굿즈 목록'과 '행사 특전'을 분석하여 아래 JSON 형식으로 반환하세요.
 
-[분석 목표]
+🎨 분석 목표
+1. 굿즈 목록
+     - 이미지에 등장하는 판매 굿즈(상품)를 식별
+     - 각 굿즈에 대해 다음 정보를 JSON으로 정리
+         - goods_name: 한글, 영어, 특수문자 모두 허용
+         - price: "XXXXX원" 형식 (단위 포함)
+         - image_index: 해당 굿즈가 추출된 이미지 번호 (0부터 시작, 예: 0, 1, 2)
 
-1. **굿즈 목록**
-    - 이미지에 등장하는 판매 굿즈를 식별
-    - 각 굿즈의 대해 다음 정보를 JSON으로 정리:
-        - 굿즈명: "XXXXX"
-        - 가격: "15000원" (단위 포함)
+2. 행사 특전
+     - 이미지에 적힌 "특전" 또는 "혜택" 정보를 추출
+     - 각 특전을 다음 규칙에 따라 JSON에 포함
+         - "특전 상품명_해당 특전을 받기 위한 조건" 형식
+             예: "포토카드_3만원 이상 구매 시 증정", "엽서세트_음료 구매 시 증정"
 
-2. **행사 특전**
-    - 이미지에 적힌 "특전" 또는 "혜택" 정보를 추출
-    - 각 특전을 다음 규칙으로 표시:
-        - "특전 상품명_해당 특전을 받기 위한 조건" 형식
-          예: "포토카드_3만원 이상 구매 시 증정", "엽서세트_음료 구매 시 증정"
+📦 출력 형식(JSON)
+{
+    "goods_list": [
+        {
+            "goods_name": "문구세트",
+            "price": "15000원",
+            "image_index": 0
+        },
+        {
+            "goods_name": "키링",
+            "price": "8000원",
+            "image_index": 1
+        }
+    ],
+    "event_benefits": [
+        "포토카드_3만원 이상 구매 시 증정",
+        "엽서세트_음료 구매 시 증정"
+    ]
+}
 
-⚠️ 주의사항:
-- 이미지 내 텍스트를 가능한 한 정확히 인식하여 JSON에 포함
-- 가격 정보가 없으면 null 또는 "" 표시
-- 특전 조건이 명시되지 않은 경우 "조건 미표기"로 기입
-- 굿즈나 특전이 없는 경우 빈 배열([])로 표시
+⚠️ 주의사항 (재수정됨: 적극적인 인덱스 사용 명령)
+- 이미지 내 텍스트를 가능한 한 정확히 인식하여 굿즈명 및 특전 조건을 추출합니다.
+- 가격 정보가 없으면 null 또는 ""로 표시합니다.
+- 특전 조건이 명시되지 않은 경우, "조건 미표기"로 기입합니다.
+- image_index는 **해당 굿즈가 어느 이미지에서 추출되었는지**를 나타내는 **소스 이미지 번호**입니다.
 
-**출력 형식:**
-반드시 JSON 구조만 반환하세요. 다른 설명은 절대 포함하지 마세요.`;
-
-        console.log('🤖 Gemini AI 이미지 분석 시작 (파일 업로드 버전)...');
+- **🔥 최우선 명령 🔥:** 여러 개의 이미지가 업로드된 경우, **반드시 각 굿즈가 속한 이미지를 분석하여 해당 인덱스(0, 1, ...)를 정확하게 부여해야 합니다.** 모든 굿즈에 0만 할당하는 것은 분석 실패로 간주됩니다.
+- **만약 2개의 이미지가 업로드된 경우, 굿즈가 1번 이미지에서 발견되었다면 image_index는 반드시 1이 되어야 합니다.** (0과 1 외의 다른 숫자는 사용 불가능합니다.)
+- image_index는 절대 굿즈의 순번(1번째 굿즈는 0, 2번째 굿즈는 1...)으로 사용해서는 안 됩니다.
+- 이미지가 1개만 있을 경우 모든 굿즈의 image_index는 0입니다.
+`;
+      console.log('🤖 Gemini AI 이미지 분석 시작 (파일 업로드 버전)...');
         console.log(`   프롬프트 길이: ${imagePrompt.length}`);
         console.log(`   이미지 파트 개수: ${imageParts.length}`);
 
@@ -1025,8 +1046,36 @@ app.post('/analyze-image-upload', upload.array('images'), async (req, res) => {
             if (ocrText && ocrText.length > 0) promptForAi += `\n\n이미지에서 추출한 텍스트:\n${ocrText}`;
 
             console.log('🤖 Gemini AI 이미지 분석 시작 (파일 업로드, AI 호출)...');
-            const result = await generateContentWithRetry(promptForAi, GOODS_SCHEMA, imageParts, null);
+            
+            // 🔥 이미지가 포함된 요청은 responseSchema 대신 text/plain으로 처리
+            const payload = {
+                contents: [{ 
+                    parts: [
+                        { text: promptForAi },  // OCR 텍스트가 포함된 프롬프트 사용
+                        ...imageParts
+                    ]
+                }],
+                generationConfig: {
+                    responseMimeType: "text/plain",
+                    temperature: 0.2
+                }
+            };
+            
+            console.log("🔌 Gemini API 직접 호출 (이미지 + text/plain)...");
+            const response = await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`API 요청 실패: ${errorText}`);
+            }
+            
+            const result = await response.json();
             const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+            
             if (!text) throw new Error('AI 응답에서 텍스트를 찾을 수 없습니다.');
 
             console.log('✅ Gemini AI 응답 받음 (파일 업로드)');
