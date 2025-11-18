@@ -4,14 +4,16 @@ import { Stack } from "expo-router";
 export default function RootLayout() {
   return (
     <Stack>
-      {/* 첫 화면(index) */}
-      <Stack.Screen name="index" options={{ title: "Welcome", headerShown: false }} />
+      {/* 1순위: getname을 앱의 첫 화면(Entry Point)으로 명확히 정의 */}
+      <Stack.Screen name="getname" options={{ title: "Get Name", headerShown: false }} />
 
-      {/* 온보딩 */}
+      {/* 2순위: 온보딩 화면 */}
       <Stack.Screen name="onboarding" options={{ title: "Onboarding", headerShown: false }} />
-
-      {/* 탭 네비게이션 */}
+      
+      {/* 3순위: 탭 화면 */}
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      
+      {/* 다른 라우트가 있다면 이 아래에 정의 */}
     </Stack>
   );
 }
