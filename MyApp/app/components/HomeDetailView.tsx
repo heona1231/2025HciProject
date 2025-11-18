@@ -390,44 +390,7 @@ const HomeDetailView: React.FC<HomeDetailViewProps> = ({ data: currentData, imag
                         {/* 이미지에서 받아온 원본 JSON 정보(가능한 경우) */}
                         {imageData && (
                             <View style={{ marginTop: 12 }}>
-                                <Text style={{ fontSize: 14, fontWeight: '700', marginBottom: 6 }}>이미지 원본 (분석 결과)</Text>
-                                <Text style={{ fontSize: 12, color: '#666', marginBottom: 6 }}>이미지 분석에서 반환된 원본 JSON을 그대로 표시합니다.</Text>
-
-                                {/* 굿즈 리스트(원본) */}
-                                {imageData?.goods?.goods_list && Array.isArray(imageData.goods.goods_list) && (
-                                    <View style={{ marginBottom: 8 }}>
-                                        <Text style={{ fontSize: 13, fontWeight: '600' }}>굿즈(이미지 원본)</Text>
-                                        {imageData.goods.goods_list.map((g: any, i: number) => (
-                                            <Text key={`img-g-${i}`} style={{ fontSize: 12, color: '#333', marginLeft: 8 }}>
-                                                • {JSON.stringify(g)}
-                                            </Text>
-                                        ))}
-                                    </View>
-                                )}
-
-                                {/* 이벤트 특전(원본) */}
-                                {imageData?.goods?.event_benefits && Array.isArray(imageData.goods.event_benefits) && (
-                                    <View style={{ marginBottom: 8 }}>
-                                        <Text style={{ fontSize: 13, fontWeight: '600' }}>특전(이미지 원본)</Text>
-                                        {imageData.goods.event_benefits.map((b: any, i: number) => (
-                                            <Text key={`img-b-${i}`} style={{ fontSize: 12, color: '#333', marginLeft: 8 }}>
-                                                • {typeof b === 'string' ? b : JSON.stringify(b)}
-                                            </Text>
-                                        ))}
-                                    </View>
-                                )}
-
-                                {/* 업로드된 이미지 데이터 URI 목록 (원본) */}
-                                {imageData?.uploaded_images && Array.isArray(imageData.uploaded_images) && (
-                                    <View>
-                                        <Text style={{ fontSize: 13, fontWeight: '600' }}>업로드된 이미지(원본)</Text>
-                                        {imageData.uploaded_images.map((u: string, i: number) => (
-                                            <Text key={`img-u-${i}`} style={{ fontSize: 11, color: '#666', marginLeft: 8 }} numberOfLines={1} ellipsizeMode="middle">
-                                                • {u}
-                                            </Text>
-                                        ))}
-                                    </View>
-                                )}
+                                
                             </View>
                         )}
                     </View>
