@@ -237,29 +237,26 @@ export default function MyPage() {
                         </View>
 
                         {/* 검색량 순위 섹션 */}
-                        <View style={[styles.frame, {gap:20}]}>
+                            <View style={[styles.frame, {gap:20}]}>
                             <View style={[styles.frame, {gap:4}]}>
                                 <Text style={[styles.caption1, {color:"#FF59AD"}]}>검색량 순위</Text>
                                 <Text style={styles.caption2}>X, 커뮤니티, 웹 정보를 기반으로 하여 인기 순위를 알려드릴게요.</Text>
                             </View>
 
                             <View style={[styles.goodsList]}>
-                                {eventData?.goods_popularity_rank && eventData.goods_popularity_rank.length > 0 ? (
-                                    // 컨텍스트의 popularity_rank 데이터 사용 (이미 정렬됨)
-                                    eventData.goods_popularity_rank.slice(0, 3).map((rank: any, index: number) => (
-                                        <View key={index} style={styles.goods}>
-                                            <View style={styles.numberCircle}>
-                                                <Text style={[styles.caption1, { color: "white" }]}>{rank.rank}</Text>
-                                            </View>
-
+                            {sortedGoodsByCount.map((item, index) => (
+                                <View key={item.id} style={styles.goods}>
+                                    <View style={styles.numberCircle}>
+                                        <Text style={[styles.caption1, { color: "white" }]}>{index + 1}</Text>
+                                    </View>
 
                                     <Image source={typeof item.image === 'string' && (item.image.startsWith('http') || item.image.startsWith('file') || item.image.startsWith('data')) ? { uri: item.image } : require("../../assets/logo.png")} style={styles.image} resizeMode="contain" />
 
                                     <View style={styles.goodsText}>
                                         <Text style={styles.caption1}>{item.name}</Text>
                                         <Text style={styles.caption2}>검색 결과 {" "}
-                                            <Text style={{ color: '#FF59AD', fontWeight: 'bold' }}>{item.searchCount?.toLocaleString() || 0}</Text>
-                                            개</Text>
+                                            <Text style={{ color: '#FF59AD', fontWeight: 'bold' }}>{item.searchCount?.toLocaleString()}</Text>
+                                        개</Text>
                                     </View>
                                 </View>
                             ))}
