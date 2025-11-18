@@ -463,13 +463,6 @@ const HomeDetailView: React.FC<HomeDetailViewProps> = ({ data: currentData, imag
                             );
                         })}
 
-                        {/* 하단 담기 버튼 목업 */}
-                        <TouchableOpacity style={styles.addToCartMock} onPress={() => Alert.alert("알림", "해당 굿즈를 담았습니다.")}>
-                            <Text style={styles.addToCartText}>해당 굿즈를 담았어요.</Text>
-                            <Ionicons name="chevron-forward" size={16} color="#FF59AD" />
-                            <Text style={styles.addToCartLink}>보러가기</Text>
-                        </TouchableOpacity>
-
                     </View>
                 )}
             </>
